@@ -3,535 +3,674 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mobile Trade & Hybrid Chart Hub</title>
+  <title>5M EMA Lab &amp; Trade Log</title>
   <style>
     :root {
-      --bg: #0b0f17;
-      --card: #131a27;
-      --card-2: #1a2335;
-      --border: #26334d;
-      --text: #e6edf7;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
       --muted: #94a3b8;
       --accent: #38bdf8;
-      --green: #22c55e;
-      --red: #ef4444;
-      --amber: #f59e0b;
+      --ema10: #facc15;
+      --ema20: #c084fc;
+      --win: #22c55e;
+      --loss: #ef4444;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 12px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 14px;
-      line-height: 1.45;
+      line-height: 1.4;
     }
-    h1 { font-size: 1.2rem; margin: 0 0 4px; }
-    h2 { font-size: 1rem; margin: 0 0 10px; color: var(--accent); }
-    p { margin: 0 0 10px; color: var(--muted); font-size: 0.88rem; }
-    .topbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    input, select, button {
-      background: var(--card-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: 0.88rem;
-    }
-    button { cursor: pointer; font-weight: 600; }
-    button.primary { background: #0284c7; border-color: #0ea5e9; color: #fff; }
-    button.danger { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
+    h1 { font-size: 1.15rem; margin: 0 0 4px; }
+    h2 { font-size: 0.95rem; margin: 0 0 10px; color: var(--accent); }
+    .sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       padding: 12px;
       margin-bottom: 12px;
     }
-    .pill {
-      display: inline-block;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      background: var(--card-2);
-      border: 1px solid var(--border);
-    }
-    .sig-buy { color: var(--green); border-color: var(--green); }
-    .sig-sell { color: var(--red); border-color: var(--red); }
-    .sig-wait { color: var(--amber); border-color: var(--amber); }
-    .ema-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 8px;
-      font-size: 0.82rem;
-    }
-    .ema-chip {
-      background: var(--card-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 5px 9px;
-    }
-    .tf-grid {
+    .row {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
-    }
-    .tf-slot {
-      background: var(--card-2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 9px 10px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .tf-label { min-width: 115px; }
-    .tf-label strong { display: block; font-size: 0.92rem; color: var(--text); }
-    .tf-label span { font-size: 0.76rem; color: var(--muted); }
-    .file-item {
-      background: var(--card-2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
       margin-bottom: 8px;
     }
-    .file-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .row-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
-    video {
-      width: 100%;
-      max-height: 240px;
+    label {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.75rem;
+      color: var(--muted);
+      gap: 4px;
+    }
+    input, select, button {
+      min-height: 44px;
       border-radius: 8px;
-      background: #000;
-      margin-top: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 0.9rem;
     }
+    button {
+      background: var(--accent);
+      color: #082f49;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #334155;
+      color: var(--text);
+      font-weight: 600;
+    }
+    button.danger {
+      background: #7f1d1d;
+      color: #fecaca;
+      font-weight: 600;
+    }
+    .status {
+      font-size: 0.8rem;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      margin-top: 8px;
+      word-break: break-word;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .metric {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px;
+      text-align: center;
+    }
+    .metric span { display: block; font-size: 0.7rem; color: var(--muted); }
+    .metric strong { font-size: 0.88rem; }
     canvas {
       width: 100%;
-      height: 260px;
-      background: #080c14;
+      height: 210px;
+      display: block;
+      background: #0b1120;
       border: 1px solid var(--border);
       border-radius: 8px;
-      display: block;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      margin-top: 8px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.8rem;
-      margin-top: 8px;
+      font-size: 0.78rem;
     }
     th, td {
+      padding: 7px 6px;
       border-bottom: 1px solid var(--border);
-      padding: 6px 4px;
       text-align: left;
+      white-space: nowrap;
     }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .stat-box {
-      background: var(--card-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px;
-      text-align: center;
-    }
-    .stat-box strong { display: block; font-size: 1rem; }
+    .win { color: var(--win); font-weight: 700; }
+    .loss { color: var(--loss); font-weight: 700; }
+    .open { color: var(--accent); font-weight: 700; }
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <div>
-      <h1>Mobile Trade & Hybrid Chart Hub</h1>
-      <p>Hardcoded Strategy: <strong>10 &amp; 20 EMA (5M)</strong> • Local Browser Storage</p>
+  <h1>5M EMA Lab &amp; Trade Log</h1>
+  <div class="sub">Local mobile Chrome starter (IndexedDB + 1-month 5M CSV + 10/20 EMA)</div>
+
+  <!-- 1. Pair & 5M CSV Loader -->
+  <section class="card">
+    <h2>1. Pair &amp; 5M CSV Loader</h2>
+    <div class="row">
+      <label>
+        Active Pair
+        <select id="pairSelect">
+          <option value="XAUUSD">XAUUSD</option>
+          <option value="EURUSD">EURUSD</option>
+          <option value="GBPUSD">GBPUSD</option>
+        </select>
+      </label>
+      <label>
+        5M CSV File (1 Month)
+        <input id="csvInput" type="file" accept=".csv,text/csv" />
+      </label>
     </div>
     <div class="row">
-      <select id="assetSelect"></select>
-      <input id="newAssetInput" type="text" placeholder="Add pair (e.g. GBPUSD)" style="width:150px;" />
-      <button id="addAssetBtn">+ Asset</button>
+      <button id="clearPairBtn" type="button" class="danger">Clear Pair Data</button>
+      <button id="stepLatestBtn" type="button" class="secondary">Refresh Latest Bar</button>
     </div>
-  </div>
+    <div id="csvStatus" class="status">Initializing IndexedDB...</div>
 
-  <!-- 1. Screen Recordings & File Manager -->
-  <div class="card">
-    <h2>1. Screen Recordings &amp; File Manager</h2>
-    <div class="row" style="margin-bottom:8px;">
-      <input id="fileNameInput" type="text" placeholder="File name (e.g. eurodollar)" style="flex:1; min-width:150px;" />
-      <select id="tfSelect">
-        <option value="5M">5M Confirmed</option>
-        <option value="OTHER">Other TF (Pause/Ask)</option>
-      </select>
-      <button id="newFileSlotBtn">+ New File</button>
+    <div class="metrics">
+      <div class="metric"><span>Bars</span><strong id="mBars">0</strong></div>
+      <div class="metric"><span>Close</span><strong id="mClose">-</strong></div>
+      <div class="metric"><span>10 EMA</span><strong id="mEma10" style="color:var(--ema10)">-</strong></div>
+      <div class="metric"><span>20 EMA</span><strong id="mEma20" style="color:var(--ema20)">-</strong></div>
     </div>
-    <div class="row">
-      <input id="videoInput" type="file" accept="video/*" style="flex:1;" />
-      <button id="saveVideoBtn" class="primary">Upload &amp; Mix</button>
+  </section>
+
+  <!-- 2. Lightweight 5M Chart -->
+  <section class="card">
+    <h2>2. 5M Chart (Last 250 Bars)</h2>
+    <canvas id="chartCanvas" width="600" height="210"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:#22c55e"></i>Bull</span>
+      <span><i class="dot" style="background:#ef4444"></i>Bear</span>
+      <span><i class="dot" style="background:var(--ema10)"></i>10 EMA</span>
+      <span><i class="dot" style="background:var(--ema20)"></i>20 EMA</span>
+      <span id="signalText">Signal: Neutral</span>
     </div>
-    <div id="tfWarning" style="margin-top:8px; color: var(--amber); font-size: 0.85rem;"></div>
-    <div id="filesList" style="margin-top:10px;"></div>
-  </div>
+  </section>
 
-  <!-- 2. Multi-Timeframe CSV Upload Slots (5M Primary) -->
-  <div class="card">
-    <h2>2. CSV Candle Upload (5M Primary + Optional TFs)</h2>
-    <p>Upload your <strong>5 Min (5M)</strong> OHLC CSV here. Other timeframe slots are optional if a strategy needs them.</p>
-    <div id="tfUploadGrid" class="tf-grid"></div>
-  </div>
-
-  <!-- 3. Hybrid Chart Engine + Live 10/20 EMA Levels -->
-  <div class="card">
-    <div class="row" style="justify-content:space-between; margin-bottom:8px;">
-      <h2 style="margin:0;">3. Hybrid Chart (Major/Reversal Candles + Line)</h2>
-      <div class="row">
-        <label for="viewTfSelect" style="font-size:0.82rem; color:var(--muted);">View TF:</label>
-        <select id="viewTfSelect"></select>
+  <!-- 3. Trade Log -->
+  <section class="card">
+    <h2>3. Trade Log</h2>
+    <form id="tradeForm">
+      <div class="row-3">
+        <label>
+          Direction
+          <select id="direction">
+            <option value="BUY">BUY</option>
+            <option value="SELL">SELL</option>
+          </select>
+        </label>
+        <label>
+          Lot Size
+          <input id="lotSize" type="number" step="0.01" min="0.01" value="0.01" required />
+        </label>
+        <label>
+          Outcome
+          <select id="outcome">
+            <option value="OPEN">OPEN</option>
+            <option value="WIN">WIN</option>
+            <option value="LOSS">LOSS</option>
+          </select>
+        </label>
       </div>
-    </div>
-    <div class="ema-bar">
-      <span class="ema-chip" style="border-color:#38bdf8;">10 EMA: <strong id="ema10Readout">--</strong></span>
-      <span class="ema-chip" style="border-color:#f59e0b;">20 EMA: <strong id="ema20Readout">--</strong></span>
-      <span class="ema-chip">Last Candle: <strong id="lastCandleReadout">--</strong></span>
-    </div>
-    <canvas id="chartCanvas" width="700" height="260"></canvas>
-    <p id="chartInfo" style="margin-top:6px;">Upload a 5M CSV to view major/reversal candles + simplified line + 10/20 EMA.</p>
-  </div>
+      <div class="row-3">
+        <label>
+          Entry
+          <input id="entryPrice" type="number" step="any" required />
+        </label>
+        <label>
+          Stop Loss
+          <input id="stopLoss" type="number" step="any" required />
+        </label>
+        <label>
+          Take Profit
+          <input id="takeProfit" type="number" step="any" required />
+        </label>
+      </div>
+      <div class="row">
+        <label>
+          Rule / Note
+          <input id="tradeNote" type="text" placeholder="e.g. 10/20 EMA pullback" />
+        </label>
+        <label>
+          &nbsp;
+          <button type="submit">Log Trade</button>
+        </label>
+      </div>
+    </form>
 
-  <!-- 4. Hardcoded Strategy Signal & Trade Log -->
-  <div class="card">
-    <div class="row" style="justify-content:space-between;">
-      <h2>4. Strategy Signal &amp; Combined Trade Log</h2>
-      <span id="signalBadge" class="pill sig-wait">Signal: WAIT</span>
-    </div>
-    <p id="signalReason">Upload 5M CSV candle data to evaluate 10 &amp; 20 EMA rules.</p>
-    <div class="stats">
-      <div class="stat-box"><span style="color:var(--muted);font-size:0.75rem;">Trades</span><strong id="statCount">0</strong></div>
-      <div class="stat-box"><span style="color:var(--muted);font-size:0.75rem;">Win Rate</span><strong id="statWin">0%</strong></div>
-      <div class="stat-box"><span style="color:var(--muted);font-size:0.75rem;">Net $</span><strong id="statPnl">$0.00</strong></div>
-    </div>
-
-    <div class="row" style="margin-top:10px;">
-      <input id="tDate" type="date" />
-      <input id="tTime" type="time" step="1" />
-      <select id="tDir">
-        <option value="BUY">BUY</option>
-        <option value="SELL">SELL</option>
-      </select>
-      <input id="tEntry" type="number" step="any" placeholder="Entry" style="width:82px;" />
-      <input id="tTp" type="number" step="any" placeholder="TP" style="width:82px;" />
-      <input id="tSl" type="number" step="any" placeholder="SL" style="width:82px;" />
-      <input id="tPnl" type="number" step="any" placeholder="$ Result" style="width:88px;" />
-      <button id="addTradeBtn" class="primary">Log Trade</button>
+    <div class="metrics">
+      <div class="metric"><span>Trades</span><strong id="tTotal">0</strong></div>
+      <div class="metric"><span>Wins</span><strong id="tWins" class="win">0</strong></div>
+      <div class="metric"><span>Losses</span><strong id="tLosses" class="loss">0</strong></div>
+      <div class="metric"><span>Win %</span><strong id="tRate">0%</strong></div>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>File</th><th>Date/Time</th><th>Dir</th><th>Entry</th><th>TP</th><th>SL</th><th>$</th><th></th>
-        </tr>
-      </thead>
-      <tbody id="tradeBody"></tbody>
-    </table>
-  </div>
+    <div class="row" style="margin-top:8px;">
+      <button id="exportTradesBtn" type="button" class="secondary">Export Trades CSV</button>
+      <button id="clearTradesBtn" type="button" class="danger">Clear Trade Log</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Pair</th>
+            <th>Side</th>
+            <th>Lot</th>
+            <th>Entry</th>
+            <th>SL</th>
+            <th>TP</th>
+            <th>Result</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody id="tradeBody"></tbody>
+      </table>
+    </div>
+  </section>
 
   <script>
-    const TIMEFRAMES = [
-      { key: "5M", label: "5 Min (5M) - Primary" },
-      { key: "1M", label: "1 Min (1M)" },
-      { key: "15M", label: "15 Min (15M)" },
-      { key: "30M", label: "30 Min (30M)" },
-      { key: "1H", label: "1 Hour (1H)" },
-      { key: "4H", label: "4 Hour (4H)" },
-      { key: "1D", label: "1 Day (1D)" }
-    ];
+    const DB_NAME = 'fx_5m_ema_lab';
+    const DB_VERSION = 1;
+    let db = null;
+    let activeCandles = [];
 
-    const HARDCODED_STRATEGY = {
-      name: "10 & 20 EMA 5M",
-      requiredTimeframe: "5M",
-      evaluate(candlesByTf) {
-        const candles = candlesByTf["5M"] || [];
-        if (candles.length < 22) {
-          return { signal: "WAIT", reason: "Need at least 22 5M candles uploaded in the 5 Min (5M) slot to compute 10 & 20 EMA." };
-        }
-        const closes = candles.map(c => c.close);
-        const ema10 = calcEMA(closes, 10);
-        const ema20 = calcEMA(closes, 20);
-        const last = closes.length - 1;
-        const prev = last - 1;
-        const cLast = candles[last];
+    const pairSelect = document.getElementById('pairSelect');
+    const csvInput = document.getElementById('csvInput');
+    const csvStatus = document.getElementById('csvStatus');
 
-        const bullCross = ema10[prev] <= ema20[prev] && ema10[last] > ema20[last] && cLast.close > ema20[last];
-        const bearCross = ema10[prev] >= ema20[prev] && ema10[last] < ema20[last] && cLast.close < ema20[last];
-
-        if (bullCross) {
-          const sl = Math.min(candles[last].low, candles[prev].low);
-          const risk = Math.abs(cLast.close - sl) || 0.0005;
-          const tp = cLast.close + risk * 1.8;
-          return {
-            signal: "BUY",
-            reason: `10 EMA crossed above 20 EMA on 5M. Entry: ${cLast.close} | SL: ${sl.toFixed(5)} | TP: ${tp.toFixed(5)}`
-          };
-        }
-        if (bearCross) {
-          const sl = Math.max(candles[last].high, candles[prev].high);
-          const risk = Math.abs(sl - cLast.close) || 0.0005;
-          const tp = cLast.close - risk * 1.8;
-          return {
-            signal: "SELL",
-            reason: `10 EMA crossed below 20 EMA on 5M. Entry: ${cLast.close} | SL: ${sl.toFixed(5)} | TP: ${tp.toFixed(5)}`
-          };
-        }
-        return {
-          signal: "WAIT",
-          reason: `No fresh 10/20 EMA crossover on 5M (10 EMA: ${ema10[last].toFixed(5)}, 20 EMA: ${ema20[last].toFixed(5)}).`
-        };
-      }
-    };
-
-    function calcEMA(values, period) {
-      const k = 2 / (period + 1);
-      const out = [values[0]];
-      for (let i = 1; i < values.length; i++) {
-        out.push(values[i] * k + out[i - 1] * (1 - k));
-      }
-      return out;
+    function setStatus(msg) {
+      csvStatus.textContent = msg;
     }
 
-    const DB_NAME = "MobileTradeHubDB_v2";
-    let db;
-
+    // IndexedDB initialization
     function openDB() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = (e) => {
-          const d = e.target.result;
-          if (!d.objectStoreNames.contains("assets")) d.createObjectStore("assets", { keyPath: "symbol" });
-          if (!d.objectStoreNames.contains("files")) d.createObjectStore("files", { keyPath: "id", autoIncrement: true });
-          if (!d.objectStoreNames.contains("trades")) d.createObjectStore("trades", { keyPath: "id", autoIncrement: true });
-          if (!d.objectStoreNames.contains("candles")) d.createObjectStore("candles", { keyPath: "id" });
+          const database = e.target.result;
+          if (!database.objectStoreNames.contains('candles')) {
+            database.createObjectStore('candles', { keyPath: 'pair' });
+          }
+          if (!database.objectStoreNames.contains('trades')) {
+            database.createObjectStore('trades', { keyPath: 'id', autoIncrement: true });
+          }
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
     }
 
-    async function putStore(storeName, value) {
-      const tx = db.transaction(storeName, "readwrite");
-      tx.objectStore(storeName).put(value);
-      return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    function idbPut(storeName, value) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).put(value);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
     }
 
-    async function getAllStore(storeName) {
-      const tx = db.transaction(storeName, "readonly");
-      const req = tx.objectStore(storeName).getAll();
-      return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+    function idbGet(storeName, key) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
     }
 
-    async function getStoreByKey(storeName, key) {
-      const tx = db.transaction(storeName, "readonly");
-      const req = tx.objectStore(storeName).get(key);
-      return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+    function idbGetAll(storeName) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
     }
 
-    async function deleteStoreKey(storeName, key) {
-      const tx = db.transaction(storeName, "readwrite");
-      tx.objectStore(storeName).delete(key);
-      return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    function idbClear(storeName) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
     }
 
-    let currentAsset = "EURUSD";
-    let viewedTf = "5M";
-
-    async function init() {
-      db = await openDB();
-      const existing = await getAllStore("assets");
-      if (existing.length === 0) {
-        await putStore("assets", { symbol: "EURUSD" });
-        await putStore("assets", { symbol: "XAUUSD" });
+    // Standard SMA-seeded EMA calculation
+    function calculateEMA(closes, period) {
+      const result = new Array(closes.length).fill(null);
+      if (closes.length < period) return result;
+      let sum = 0;
+      for (let i = 0; i < period; i++) sum += closes[i];
+      let prev = sum / period;
+      result[period - 1] = prev;
+      const multiplier = 2 / (period + 1);
+      for (let i = period; i < closes.length; i++) {
+        prev = (closes[i] - prev) * multiplier + prev;
+        result[i] = prev;
       }
-      const viewSel = document.getElementById("viewTfSelect");
-      viewSel.innerHTML = TIMEFRAMES.map(t => `<option value="${t.key}">${t.label}</option>`).join("");
-      viewSel.value = viewedTf;
-      viewSel.onchange = async (e) => {
-        viewedTf = e.target.value;
-        await renderChartAndSignal();
-      };
-
-      await renderAssets();
-      await refreshAll();
+      return result;
     }
 
-    async function renderAssets() {
-      const assets = await getAllStore("assets");
-      const sel = document.getElementById("assetSelect");
-      sel.innerHTML = assets.map(a => `<option value="${a.symbol}">${a.symbol}</option>`).join("");
-      if (assets.some(a => a.symbol === currentAsset)) {
-        sel.value = currentAsset;
-      } else if (assets[0]) {
-        currentAsset = assets[0].symbol;
-        sel.value = currentAsset;
+    // Flexible 5M CSV parser (supports comma, semicolon, tab; header or headerless OHLC)
+    function parse5MCSV(text) {
+      const clean = text.replace(/^\uFEFF/, '').trim();
+      if (!clean) return { candles: [], skipped: 0, error: 'Empty CSV file.' };
+
+      const lines = clean.split(/\r?\n/).filter(Boolean);
+      const delimiter = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
+      const firstCells = lines[0].split(delimiter).map(c => c.trim().toLowerCase());
+
+      let idxTime = 0, idxOpen = 1, idxHigh = 2, idxLow = 3, idxClose = 4;
+      let startRow = 0;
+
+      const hasHeader = firstCells.some(c =>
+        ['time', 'timestamp', 'date', 'datetime', 'open', 'close'].includes(c)
+      );
+
+      if (hasHeader) {
+        startRow = 1;
+        const findCol = (names, fallback) => {
+          const found = firstCells.findIndex(c => names.includes(c));
+          return found >= 0 ? found : fallback;
+        };
+        idxTime = findCol(['timestamp', 'time', 'datetime', 'date'], 0);
+        idxOpen = findCol(['open', 'o'], 1);
+        idxHigh = findCol(['high', 'h'], 2);
+        idxLow = findCol(['low', 'l'], 3);
+        idxClose = findCol(['close', 'c'], 4);
       }
-    }
 
-    document.getElementById("addAssetBtn").onclick = async () => {
-      const sym = document.getElementById("newAssetInput").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      if (!sym) return;
-      await putStore("assets", { symbol: sym });
-      currentAsset = sym;
-      document.getElementById("newAssetInput").value = "";
-      await renderAssets();
-      await refreshAll();
-    };
+      const candles = [];
+      let skipped = 0;
 
-    document.getElementById("assetSelect").onchange = async (e) => {
-      currentAsset = e.target.value;
-      await refreshAll();
-    };
+      for (let i = startRow; i < lines.length; i++) {
+        const cols = lines[i].split(delimiter).map(c => c.trim());
+        if (cols.length < 5) {
+          skipped++;
+          continue;
+        }
+        const tsRaw = cols[idxTime];
+        const open = parseFloat(cols[idxOpen]);
+        const high = parseFloat(cols[idxHigh]);
+        const low = parseFloat(cols[idxLow]);
+        const close = parseFloat(cols[idxClose]);
 
-    document.getElementById("newFileSlotBtn").onclick = () => {
-      document.getElementById("fileNameInput").value = "";
-      document.getElementById("videoInput").value = "";
-      document.getElementById("fileNameInput").focus();
-    };
-
-    document.getElementById("saveVideoBtn").onclick = async () => {
-      const tf = document.getElementById("tfSelect").value;
-      const warn = document.getElementById("tfWarning");
-      if (tf !== HARDCODED_STRATEGY.requiredTimeframe) {
-        warn.textContent = `Paused: Strategy requires 5M. Switch timeframe selector to "5M Confirmed" to log and mix this recording.`;
-        return;
+        if (!tsRaw || [open, high, low, close].some(Number.isNaN)) {
+          skipped++;
+          continue;
+        }
+        candles.push({ time: tsRaw, open, high, low, close });
       }
-      warn.textContent = "";
 
-      const fileInput = document.getElementById("videoInput");
-      const file = fileInput.files[0];
-      const customName = document.getElementById("fileNameInput").value.trim() || (file ? file.name : `session_${Date.now()}`);
-
-      await putStore("files", {
-        symbol: currentAsset,
-        name: customName,
-        timeframe: tf,
-        createdAt: new Date().toISOString(),
-        videoBlob: file || null
+      candles.sort((a, b) => {
+        const ta = Date.parse(a.time);
+        const tb = Date.parse(b.time);
+        if (!Number.isNaN(ta) && !Number.isNaN(tb)) return ta - tb;
+        return a.time.localeCompare(b.time);
       });
 
-      document.getElementById("fileNameInput").value = "";
-      fileInput.value = "";
-      await renderFiles();
-    };
+      return { candles, skipped, error: null };
+    }
 
-    async function renderFiles() {
-      const all = await getAllStore("files");
-      const files = all.filter(f => f.symbol === currentAsset).reverse();
-      const container = document.getElementById("filesList");
-      if (!files.length) {
-        container.innerHTML = `<p>No files saved for ${currentAsset} yet. Name a file and upload a recording.</p>`;
+    function renderMetrics(candles) {
+      const mBars = document.getElementById('mBars');
+      const mClose = document.getElementById('mClose');
+      const mEma10 = document.getElementById('mEma10');
+      const mEma20 = document.getElementById('mEma20');
+      const signalText = document.getElementById('signalText');
+
+      mBars.textContent = candles.length;
+      if (!candles.length) {
+        mClose.textContent = '-';
+        mEma10.textContent = '-';
+        mEma20.textContent = '-';
+        signalText.textContent = 'Signal: Neutral';
         return;
       }
-      container.innerHTML = files.map(f => {
-        const url = f.videoBlob ? URL.createObjectURL(f.videoBlob) : "";
-        return `
-          <div class="file-item">
-            <div class="file-head">
-              <div>
-                <strong>${escapeHtml(f.name)}</strong>
-                <span class="pill">${f.timeframe}</span>
-                <span style="color:var(--muted);font-size:0.75rem;">${new Date(f.createdAt).toLocaleString()}</span>
-              </div>
-              <button class="danger" onclick="deleteFileRecord(${f.id})">Delete</button>
-            </div>
-            ${url ? `<video controls playsinline src="${url}"></video>` : `<p style="margin:0;font-size:0.8rem;">Session entry (no video attached)</p>`}
-          </div>
+
+      const closes = candles.map(c => c.close);
+      const ema10 = calculateEMA(closes, 10);
+      const ema20 = calculateEMA(closes, 20);
+      const lastIdx = candles.length - 1;
+
+      const lastClose = closes[lastIdx];
+      const last10 = ema10[lastIdx];
+      const last20 = ema20[lastIdx];
+
+      mClose.textContent = lastClose.toFixed(2);
+      mEma10.textContent = last10 !== null ? last10.toFixed(2) : '-';
+      mEma20.textContent = last20 !== null ? last20.toFixed(2) : '-';
+
+      if (last10 !== null && last20 !== null) {
+        signalText.textContent = last10 > last20
+          ? 'Signal: 10 EMA > 20 EMA (Bullish bias)'
+          : 'Signal: 10 EMA < 20 EMA (Bearish bias)';
+      }
+    }
+
+    function renderChart(candles) {
+      const canvas = document.getElementById('chartCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (!candles.length) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '14px system-ui';
+        ctx.fillText('Upload a 1-month 5M CSV to render candles & 10/20 EMA', 16, 36);
+        return;
+      }
+
+      const slice = candles.slice(-250);
+      const closes = slice.map(c => c.close);
+      const ema10 = calculateEMA(closes, 10);
+      const ema20 = calculateEMA(closes, 20);
+
+      let minP = Infinity;
+      let maxP = -Infinity;
+      for (const c of slice) {
+        if (c.low < minP) minP = c.low;
+        if (c.high > maxP) maxP = c.high;
+      }
+      const pad = (maxP - minP) * 0.08 || 1;
+      minP -= pad;
+      maxP += pad;
+
+      const xStep = w / slice.length;
+      const yFor = (price) => h - 12 - ((price - minP) / (maxP - minP)) * (h - 24);
+
+      // Draw candles
+      slice.forEach((c, i) => {
+        const x = i * xStep + xStep * 0.5;
+        const yOpen = yFor(c.open);
+        const yClose = yFor(c.close);
+        const yHigh = yFor(c.high);
+        const yLow = yFor(c.low);
+        const bull = c.close >= c.open;
+
+        ctx.strokeStyle = bull ? '#22c55e' : '#ef4444';
+        ctx.fillStyle = bull ? '#22c55e' : '#ef4444';
+
+        ctx.beginPath();
+        ctx.moveTo(x, yHigh);
+        ctx.lineTo(x, yLow);
+        ctx.stroke();
+
+        const bodyTop = Math.min(yOpen, yClose);
+        const bodyH = Math.max(2, Math.abs(yClose - yOpen));
+        ctx.fillRect(x - Math.max(1, xStep * 0.3), bodyTop, Math.max(2, xStep * 0.6), bodyH);
+      });
+
+      // Draw EMA line helper
+      function drawLine(arr, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        let started = false;
+        arr.forEach((val, i) => {
+          if (val === null) return;
+          const x = i * xStep + xStep * 0.5;
+          const y = yFor(val);
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+      }
+
+      drawLine(ema10, '#facc15');
+      drawLine(ema20, '#c084fc');
+    }
+
+    async function loadPairFromDB(pair) {
+      const record = await idbGet('candles', pair);
+      activeCandles = record ? record.candles : [];
+      renderMetrics(activeCandles);
+      renderChart(activeCandles);
+
+      if (activeCandles.length) {
+        const first = activeCandles[0].time;
+        const last = activeCandles[activeCandles.length - 1].time;
+        setStatus(`${pair}: ${activeCandles.length} 5M bars loaded (${first} -> ${last})`);
+      } else {
+        setStatus(`${pair}: No 5M CSV loaded yet. Pick a 1-month 5M file.`);
+      }
+    }
+
+    async function renderTrades() {
+      const trades = await idbGetAll('trades');
+      const tbody = document.getElementById('tradeBody');
+      tbody.innerHTML = '';
+
+      let wins = 0;
+      let losses = 0;
+
+      trades.slice().reverse().forEach((t) => {
+        if (t.outcome === 'WIN') wins++;
+        if (t.outcome === 'LOSS') losses++;
+
+        const tr = document.createElement('tr');
+        const cls = t.outcome === 'WIN' ? 'win' : (t.outcome === 'LOSS' ? 'loss' : 'open');
+        tr.innerHTML = `
+          <td>${t.pair}</td>
+          <td>${t.direction}</td>
+          <td>${t.lotSize}</td>
+          <td>${t.entry}</td>
+          <td>${t.stopLoss}</td>
+          <td>${t.takeProfit}</td>
+          <td class="${cls}">${t.outcome}</td>
+          <td>${t.note || ''}</td>
         `;
-      }).join("");
+        tbody.appendChild(tr);
+      });
+
+      const closed = wins + losses;
+      document.getElementById('tTotal').textContent = trades.length;
+      document.getElementById('tWins').textContent = wins;
+      document.getElementById('tLosses').textContent = losses;
+      document.getElementById('tRate').textContent = closed ? `${Math.round((wins / closed) * 100)}%` : '0%';
     }
 
-    window.deleteFileRecord = async (id) => {
-      await deleteStoreKey("files", id);
-      await renderFiles();
-    };
-
-    async function renderTfUploadGrid() {
-      const grid = document.getElementById("tfUploadGrid");
-      const items = [];
-      for (const tf of TIMEFRAMES) {
-        const rec = await getStoreByKey("candles", `${currentAsset}__${tf.key}`);
-        const count = rec && rec.rows ? rec.rows.length : 0;
-        items.push(`
-          <div class="tf-slot">
-            <div class="tf-label">
-              <strong>${tf.label}</strong>
-              <span>${count ? `${count.toLocaleString()} candles saved` : "Empty"}</span>
-            </div>
-            <div class="row" style="flex:1; justify-content:flex-end;">
-              <input id="csvInput_${tf.key}" type="file" accept=".csv,text/csv" style="max-width:195px;" />
-              <button class="primary" onclick="importTfCsv('${tf.key}')">Upload CSV</button>
-              ${count ? `<button class="danger" onclick="clearTfCsv('${tf.key}')">Clear</button>` : ""}
-            </div>
-          </div>
-        `);
-      }
-      grid.innerHTML = items.join("");
-    }
-
-    window.importTfCsv = async (tfKey) => {
-      const input = document.getElementById(`csvInput_${tfKey}`);
-      const file = input && input.files[0];
+    // Event Listeners
+    csvInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
       if (!file) return;
-      const text = await file.text();
-      const parsed = parseOHLCCSV(text);
-      if (!parsed.length) {
-        alert(`Could not parse OHLC rows for ${tfKey}. Ensure CSV has Date/Time, Open, High, Low, Close.`);
-        return;
+      const pair = pairSelect.value;
+      setStatus(`Reading ${file.name}...`);
+
+      try {
+        const text = await file.text();
+        const { candles, skipped, error } = parse5MCSV(text);
+        if (error || !candles.length) {
+          setStatus(`Import failed: ${error || 'No valid OHLC rows found.'}`);
+          return;
+        }
+        await idbPut('candles', { pair, candles, updatedAt: Date.now() });
+        activeCandles = candles;
+        renderMetrics(activeCandles);
+        renderChart(activeCandles);
+        setStatus(`${pair}: Saved ${candles.length} 5M bars (${skipped} skipped).`);
+      } catch (err) {
+        setStatus(`Error loading CSV: ${err.message}`);
       }
-      const storeId = `${currentAsset}__${tfKey}`;
-      const existingRec = await getStoreByKey("candles", storeId);
-      const map = new Map();
-      if (existingRec && existingRec.rows) {
-        existingRec.rows.forEach(r => map.set(r.time, r));
+      csvInput.value = '';
+    });
+
+    pairSelect.addEventListener('change', () => loadPairFromDB(pairSelect.value));
+
+    document.getElementById('clearPairBtn').addEventListener('click', async () => {
+      const pair = pairSelect.value;
+      await idbPut('candles', { pair, candles: [], updatedAt: Date.now() });
+      await loadPairFromDB(pair);
+    });
+
+    document.getElementById('stepLatestBtn').addEventListener('click', () => {
+      renderMetrics(activeCandles);
+      renderChart(activeCandles);
+    });
+
+    document.getElementById('tradeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const trade = {
+        pair: pairSelect.value,
+        direction: document.getElementById('direction').value,
+        lotSize: parseFloat(document.getElementById('lotSize').value),
+        entry: parseFloat(document.getElementById('entryPrice').value),
+        stopLoss: parseFloat(document.getElementById('stopLoss').value),
+        takeProfit: parseFloat(document.getElementById('takeProfit').value),
+        outcome: document.getElementById('outcome').value,
+        note: document.getElementById('tradeNote').value.trim(),
+        createdAt: new Date().toISOString()
+      };
+      await idbPut('trades', trade);
+      document.getElementById('tradeNote').value = '';
+      await renderTrades();
+    });
+
+    document.getElementById('clearTradesBtn').addEventListener('click', async () => {
+      await idbClear('trades');
+      await renderTrades();
+    });
+
+    document.getElementById('exportTradesBtn').addEventListener('click', async () => {
+      const trades = await idbGetAll('trades');
+      if (!trades.length) return;
+      const headers = ['id', 'createdAt', 'pair', 'direction', 'lotSize', 'entry', 'stopLoss', 'takeProfit', 'outcome', 'note'];
+      const rows = trades.map(t => headers.map(h => JSON.stringify(t[h] ?? '')).join(','));
+      const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '5m_ema_trade_log.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Startup
+    (async function init() {
+      try {
+        db = await openDB();
+        await loadPairFromDB(pairSelect.value);
+        await renderTrades();
+      } catch (err) {
+        setStatus(`IndexedDB error: ${err.message}`);
       }
-      parsed.forEach(r => map.set(r.time, r));
-      const merged = Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time));
-      await putStore("candles", { id: storeId, symbol: currentAsset, timeframe: tfKey, rows: merged });
-
-      viewedTf = tfKey;
-      document.getElementById("viewTfSelect").value = tfKey;
-      await renderTfUploadGrid();
-      await renderChartAndSignal();
-    };
-
-    window.clearTfCsv = async (tfKey) => {
-      await deleteStoreKey("candles", `${currentAsset}__${tfKey}`);
-      await renderTfUploadGrid();
-      await renderChartAndSignal();
-    };
-
-    function parseOHLCCSV(text) {
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const rows = [];
-      for (const line of lines) {
-        const parts = line.split(/[,;\t]/).map(s => s.trim());
-        if (parts.length < 5) continue;
-        let timeStr, o, h, l, c;
-        if (parts.length >= 6 && !isNaN(parseFloat(parts[2]))) {
-          timeStr = `${parts[0]} ${parts[1]}`;
-          o = parseFloat(parts[2]); h = parseFloat(parts[3]); l = parseFloat(parts[4]); c = parseFloat(parts[5]);
-        } else {
-          timeStr = parts[0];
-          o = parseFloat(pa
+    })();
+  </script>
+</body>
+</html>
