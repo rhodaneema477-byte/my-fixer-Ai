@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mobile Trade & Hybrid Chart Hub</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card: #131a27;
+      --card-2: #1a2335;
+      --border: #26334d;
+      --text: #e6edf7;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --amber: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 14px;
+      line-height: 1.45;
+    }
+    h1 { font-size: 1.2rem; margin: 0 0 4px; }
+    h2 { font-size: 1rem; margin: 0 0 10px; color: var(--accent); }
+    p { margin: 0 0 10px; color: var(--muted); font-size: 0.88rem; }
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    input, select, button {
+      background: var(--card-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.88rem;
+    }
+    button { cursor: pointer; font-weight: 600; }
+    button.primary { background: #0284c7; border-color: #0ea5e9; color: #fff; }
+    button.danger { background: rgba(239, 68, 68, 0.16); border-color: #ef4444; color: #fca5a5; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      background: var(--card-2);
+      border: 1px solid var(--border);
+    }
+    .sig-buy { color: var(--green); border-color: var(--green); }
+    .sig-sell { color: var(--red); border-color: var(--red); }
+    .sig-wait { color: var(--amber); border-color: var(--amber); }
+    .ema-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.82rem;
+    }
+    .ema-chip {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 9px;
+    }
+    .tf-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .tf-slot {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 10px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .tf-label { min-width: 115px; }
+    .tf-label strong { display: block; font-size: 0.92rem; color: var(--text); }
+    .tf-label span { font-size: 0.76rem; color: var(--muted); }
+    .file-item {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .file-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    video {
+      width: 100%;
+      max-height: 240px;
+      border-radius: 8px;
+      background: #000;
+      margin-top: 6px;
+    }
+    canvas {
+      width: 100%;
+      height: 260px;
+      background: #080c14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: block;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 6px 4px;
+      text-align: left;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat-box {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+    }
+    .stat-box strong { display: block; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>Mobile Trade & Hybrid Chart Hub</h1>
+      <p>Hardcoded Strategy: <strong>10 &amp; 20 EMA (5M)</strong> • Local Browser Storage</p>
+    </div>
+    <div class="row">
+      <select id="assetSelect"></select>
+      <input id="newAssetInput" type="text" placeholder="Add pair (e.g. GBPUSD)" style="width:150px;" />
+      <button id="addAssetBtn">+ Asset</button>
+    </div>
+  </div>
+
+  <!-- 1. Screen Recordings & File Manager -->
+  <div class="card">
+    <h2>1. Screen Recordings &amp; File Manager</h2>
+    <div class="row" style="margin-bottom:8px;">
+      <input id="fileNameInput" type="text" placeholder="File name (e.g. eurodollar)" style="flex:1; min-width:150px;" />
+      <select id="tfSelect">
+        <option value="5M">5M Confirmed</option>
+        <option value="OTHER">Other TF (Pause/Ask)</option>
+      </select>
+      <button id="newFileSlotBtn">+ New File</button>
+    </div>
+    <div class="row">
+      <input id="videoInput" type="file" accept="video/*" style="flex:1;" />
+      <button id="saveVideoBtn" class="primary">Upload &amp; Mix</button>
+    </div>
+    <div id="tfWarning" style="margin-top:8px; color: var(--amber); font-size: 0.85rem;"></div>
+    <div id="filesList" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- 2. Multi-Timeframe CSV Upload Slots (5M Primary) -->
+  <div class="card">
+    <h2>2. CSV Candle Upload (5M Primary + Optional TFs)</h2>
+    <p>Upload your <strong>5 Min (5M)</strong> OHLC CSV here. Other timeframe slots are optional if a strategy needs them.</p>
+    <div id="tfUploadGrid" class="tf-grid"></div>
+  </div>
+
+  <!-- 3. Hybrid Chart Engine + Live 10/20 EMA Levels -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between; margin-bottom:8px;">
+      <h2 style="margin:0;">3. Hybrid Chart (Major/Reversal Candles + Line)</h2>
+      <div class="row">
+        <label for="viewTfSelect" style="font-size:0.82rem; color:var(--muted);">View TF:</label>
+        <select id="viewTfSelect"></select>
+      </div>
+    </div>
+    <div class="ema-bar">
+      <span class="ema-chip" style="border-color:#38bdf8;">10 EMA: <strong id="ema10Readout">--</strong></span>
+      <span class="ema-chip" style="border-color:#f59e0b;">20 EMA: <strong id="ema20Readout">--</strong></span>
+      <span class="ema-chip">Last Candle: <strong id="lastCandleReadout">--</strong></span>
+    </div>
+    <canvas id="chartCanvas" width="700" height="260"></canvas>
+    <p id="chartInfo" style="margin-top:6px;">Upload a 5M CSV to view major/reversal candles + simplified line + 10/20 EMA.</p>
+  </div>
+
+  <!-- 4. Hardcoded Strategy Signal & Trade Log -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <h2>4. Strategy Signal &amp; Combined Trade Log</h2>
+      <span id="signalBadge" class="pill sig-wait">Signal: WAIT</span>
+    </div>
+    <p id="signalReason">Upload 5M CSV candle data to evaluate 10 &amp; 20 EMA rules.</p>
+    <div class="stats">
+      <div class="stat-box"><span style="color:var(--muted);font-size:0.75rem;">Trades</span><strong id="statCount">0</strong></div>
+      <div class="stat-box"><span style="color:var(--muted);font-size:0.75rem;">Win Rate</span><strong id="statWin">0%</strong></div>
+      <div class="stat-box"><span style="color:var(--muted);font-size:0.75rem;">Net $</span><strong id="statPnl">$0.00</strong></div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <input id="tDate" type="date" />
+      <input id="tTime" type="time" step="1" />
+      <select id="tDir">
+        <option value="BUY">BUY</option>
+        <option value="SELL">SELL</option>
+      </select>
+      <input id="tEntry" type="number" step="any" placeholder="Entry" style="width:82px;" />
+      <input id="tTp" type="number" step="any" placeholder="TP" style="width:82px;" />
+      <input id="tSl" type="number" step="any" placeholder="SL" style="width:82px;" />
+      <input id="tPnl" type="number" step="any" placeholder="$ Result" style="width:88px;" />
+      <button id="addTradeBtn" class="primary">Log Trade</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>File</th><th>Date/Time</th><th>Dir</th><th>Entry</th><th>TP</th><th>SL</th><th>$</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="tradeBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const TIMEFRAMES = [
+      { key: "5M", label: "5 Min (5M) - Primary" },
+      { key: "1M", label: "1 Min (1M)" },
+      { key: "15M", label: "15 Min (15M)" },
+      { key: "30M", label: "30 Min (30M)" },
+      { key: "1H", label: "1 Hour (1H)" },
+      { key: "4H", label: "4 Hour (4H)" },
+      { key: "1D", label: "1 Day (1D)" }
+    ];
+
+    const HARDCODED_STRATEGY = {
+      name: "10 & 20 EMA 5M",
+      requiredTimeframe: "5M",
+      evaluate(candlesByTf) {
+        const candles = candlesByTf["5M"] || [];
+        if (candles.length < 22) {
+          return { signal: "WAIT", reason: "Need at least 22 5M candles uploaded in the 5 Min (5M) slot to compute 10 & 20 EMA." };
+        }
+        const closes = candles.map(c => c.close);
+        const ema10 = calcEMA(closes, 10);
+        const ema20 = calcEMA(closes, 20);
+        const last = closes.length - 1;
+        const prev = last - 1;
+        const cLast = candles[last];
+
+        const bullCross = ema10[prev] <= ema20[prev] && ema10[last] > ema20[last] && cLast.close > ema20[last];
+        const bearCross = ema10[prev] >= ema20[prev] && ema10[last] < ema20[last] && cLast.close < ema20[last];
+
+        if (bullCross) {
+          const sl = Math.min(candles[last].low, candles[prev].low);
+          const risk = Math.abs(cLast.close - sl) || 0.0005;
+          const tp = cLast.close + risk * 1.8;
+          return {
+            signal: "BUY",
+            reason: `10 EMA crossed above 20 EMA on 5M. Entry: ${cLast.close} | SL: ${sl.toFixed(5)} | TP: ${tp.toFixed(5)}`
+          };
+        }
+        if (bearCross) {
+          const sl = Math.max(candles[last].high, candles[prev].high);
+          const risk = Math.abs(sl - cLast.close) || 0.0005;
+          const tp = cLast.close - risk * 1.8;
+          return {
+            signal: "SELL",
+            reason: `10 EMA crossed below 20 EMA on 5M. Entry: ${cLast.close} | SL: ${sl.toFixed(5)} | TP: ${tp.toFixed(5)}`
+          };
+        }
+        return {
+          signal: "WAIT",
+          reason: `No fresh 10/20 EMA crossover on 5M (10 EMA: ${ema10[last].toFixed(5)}, 20 EMA: ${ema20[last].toFixed(5)}).`
+        };
+      }
+    };
+
+    function calcEMA(values, period) {
+      const k = 2 / (period + 1);
+      const out = [values[0]];
+      for (let i = 1; i < values.length; i++) {
+        out.push(values[i] * k + out[i - 1] * (1 - k));
+      }
+      return out;
+    }
+
+    const DB_NAME = "MobileTradeHubDB_v2";
+    let db;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("assets")) d.createObjectStore("assets", { keyPath: "symbol" });
+          if (!d.objectStoreNames.contains("files")) d.createObjectStore("files", { keyPath: "id", autoIncrement: true });
+          if (!d.objectStoreNames.contains("trades")) d.createObjectStore("trades", { keyPath: "id", autoIncrement: true });
+          if (!d.objectStoreNames.contains("candles")) d.createObjectStore("candles", { keyPath: "id" });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function putStore(storeName, value) {
+      const tx = db.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).put(value);
+      return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    }
+
+    async function getAllStore(storeName) {
+      const tx = db.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).getAll();
+      return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+    }
+
+    async function getStoreByKey(storeName, key) {
+      const tx = db.transaction(storeName, "readonly");
+      const req = tx.objectStore(storeName).get(key);
+      return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+    }
+
+    async function deleteStoreKey(storeName, key) {
+      const tx = db.transaction(storeName, "readwrite");
+      tx.objectStore(storeName).delete(key);
+      return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    }
+
+    let currentAsset = "EURUSD";
+    let viewedTf = "5M";
+
+    async function init() {
+      db = await openDB();
+      const existing = await getAllStore("assets");
+      if (existing.length === 0) {
+        await putStore("assets", { symbol: "EURUSD" });
+        await putStore("assets", { symbol: "XAUUSD" });
+      }
+      const viewSel = document.getElementById("viewTfSelect");
+      viewSel.innerHTML = TIMEFRAMES.map(t => `<option value="${t.key}">${t.label}</option>`).join("");
+      viewSel.value = viewedTf;
+      viewSel.onchange = async (e) => {
+        viewedTf = e.target.value;
+        await renderChartAndSignal();
+      };
+
+      await renderAssets();
+      await refreshAll();
+    }
+
+    async function renderAssets() {
+      const assets = await getAllStore("assets");
+      const sel = document.getElementById("assetSelect");
+      sel.innerHTML = assets.map(a => `<option value="${a.symbol}">${a.symbol}</option>`).join("");
+      if (assets.some(a => a.symbol === currentAsset)) {
+        sel.value = currentAsset;
+      } else if (assets[0]) {
+        currentAsset = assets[0].symbol;
+        sel.value = currentAsset;
+      }
+    }
+
+    document.getElementById("addAssetBtn").onclick = async () => {
+      const sym = document.getElementById("newAssetInput").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (!sym) return;
+      await putStore("assets", { symbol: sym });
+      currentAsset = sym;
+      document.getElementById("newAssetInput").value = "";
+      await renderAssets();
+      await refreshAll();
+    };
+
+    document.getElementById("assetSelect").onchange = async (e) => {
+      currentAsset = e.target.value;
+      await refreshAll();
+    };
+
+    document.getElementById("newFileSlotBtn").onclick = () => {
+      document.getElementById("fileNameInput").value = "";
+      document.getElementById("videoInput").value = "";
+      document.getElementById("fileNameInput").focus();
+    };
+
+    document.getElementById("saveVideoBtn").onclick = async () => {
+      const tf = document.getElementById("tfSelect").value;
+      const warn = document.getElementById("tfWarning");
+      if (tf !== HARDCODED_STRATEGY.requiredTimeframe) {
+        warn.textContent = `Paused: Strategy requires 5M. Switch timeframe selector to "5M Confirmed" to log and mix this recording.`;
+        return;
+      }
+      warn.textContent = "";
+
+      const fileInput = document.getElementById("videoInput");
+      const file = fileInput.files[0];
+      const customName = document.getElementById("fileNameInput").value.trim() || (file ? file.name : `session_${Date.now()}`);
+
+      await putStore("files", {
+        symbol: currentAsset,
+        name: customName,
+        timeframe: tf,
+        createdAt: new Date().toISOString(),
+        videoBlob: file || null
+      });
+
+      document.getElementById("fileNameInput").value = "";
+      fileInput.value = "";
+      await renderFiles();
+    };
+
+    async function renderFiles() {
+      const all = await getAllStore("files");
+      const files = all.filter(f => f.symbol === currentAsset).reverse();
+      const container = document.getElementById("filesList");
+      if (!files.length) {
+        container.innerHTML = `<p>No files saved for ${currentAsset} yet. Name a file and upload a recording.</p>`;
+        return;
+      }
+      container.innerHTML = files.map(f => {
+        const url = f.videoBlob ? URL.createObjectURL(f.videoBlob) : "";
+        return `
+          <div class="file-item">
+            <div class="file-head">
+              <div>
+                <strong>${escapeHtml(f.name)}</strong>
+                <span class="pill">${f.timeframe}</span>
+                <span style="color:var(--muted);font-size:0.75rem;">${new Date(f.createdAt).toLocaleString()}</span>
+              </div>
+              <button class="danger" onclick="deleteFileRecord(${f.id})">Delete</button>
+            </div>
+            ${url ? `<video controls playsinline src="${url}"></video>` : `<p style="margin:0;font-size:0.8rem;">Session entry (no video attached)</p>`}
+          </div>
+        `;
+      }).join("");
+    }
+
+    window.deleteFileRecord = async (id) => {
+      await deleteStoreKey("files", id);
+      await renderFiles();
+    };
+
+    async function renderTfUploadGrid() {
+      const grid = document.getElementById("tfUploadGrid");
+      const items = [];
+      for (const tf of TIMEFRAMES) {
+        const rec = await getStoreByKey("candles", `${currentAsset}__${tf.key}`);
+        const count = rec && rec.rows ? rec.rows.length : 0;
+        items.push(`
+          <div class="tf-slot">
+            <div class="tf-label">
+              <strong>${tf.label}</strong>
+              <span>${count ? `${count.toLocaleString()} candles saved` : "Empty"}</span>
+            </div>
+            <div class="row" style="flex:1; justify-content:flex-end;">
+              <input id="csvInput_${tf.key}" type="file" accept=".csv,text/csv" style="max-width:195px;" />
+              <button class="primary" onclick="importTfCsv('${tf.key}')">Upload CSV</button>
+              ${count ? `<button class="danger" onclick="clearTfCsv('${tf.key}')">Clear</button>` : ""}
+            </div>
+          </div>
+        `);
+      }
+      grid.innerHTML = items.join("");
+    }
+
+    window.importTfCsv = async (tfKey) => {
+      const input = document.getElementById(`csvInput_${tfKey}`);
+      const file = input && input.files[0];
+      if (!file) return;
+      const text = await file.text();
+      const parsed = parseOHLCCSV(text);
+      if (!parsed.length) {
+        alert(`Could not parse OHLC rows for ${tfKey}. Ensure CSV has Date/Time, Open, High, Low, Close.`);
+        return;
+      }
+      const storeId = `${currentAsset}__${tfKey}`;
+      const existingRec = await getStoreByKey("candles", storeId);
+      const map = new Map();
+      if (existingRec && existingRec.rows) {
+        existingRec.rows.forEach(r => map.set(r.time, r));
+      }
+      parsed.forEach(r => map.set(r.time, r));
+      const merged = Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time));
+      await putStore("candles", { id: storeId, symbol: currentAsset, timeframe: tfKey, rows: merged });
+
+      viewedTf = tfKey;
+      document.getElementById("viewTfSelect").value = tfKey;
+      await renderTfUploadGrid();
+      await renderChartAndSignal();
+    };
+
+    window.clearTfCsv = async (tfKey) => {
+      await deleteStoreKey("candles", `${currentAsset}__${tfKey}`);
+      await renderTfUploadGrid();
+      await renderChartAndSignal();
+    };
+
+    function parseOHLCCSV(text) {
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const rows = [];
+      for (const line of lines) {
+        const parts = line.split(/[,;\t]/).map(s => s.trim());
+        if (parts.length < 5) continue;
+        let timeStr, o, h, l, c;
+        if (parts.length >= 6 && !isNaN(parseFloat(parts[2]))) {
+          timeStr = `${parts[0]} ${parts[1]}`;
+          o = parseFloat(parts[2]); h = parseFloat(parts[3]); l = parseFloat(parts[4]); c = parseFloat(parts[5]);
+        } else {
+          timeStr = parts[0];
+          o = parseFloat(pa
