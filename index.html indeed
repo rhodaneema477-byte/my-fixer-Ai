@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MT5 Screen-Record Order Helper</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --buy: #22c55e;
+      --sell: #ef4444;
+      --wait: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 12px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.4;
+    }
+    h1 { font-size: 1.15rem; margin: 0 0 4px; }
+    h2 { font-size: 0.95rem; margin: 0 0 10px; color: var(--accent); }
+    .sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .row-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.76rem;
+      color: var(--muted);
+      gap: 4px;
+    }
+    input, select, button {
+      min-height: 44px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 0.9rem;
+    }
+    button {
+      background: var(--accent);
+      color: #082f49;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #334155;
+      color: var(--text);
+      font-weight: 600;
+    }
+    button.danger {
+      background: #7f1d1d;
+      color: #fecaca;
+      font-weight: 600;
+    }
+    video {
+      width: 100%;
+      max-height: 340px;
+      background: #000;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+    .signal-box {
+      text-align: center;
+      padding: 14px 10px;
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      background: #0b1120;
+      margin-top: 8px;
+    }
+    .signal-word {
+      font-size: 1.8rem;
+      font-weight: 900;
+      letter-spacing: 1px;
+      display: block;
+    }
+    .signal-reason {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+      display: block;
+    }
+    .sig-buy { border-color: var(--buy); color: var(--buy); }
+    .sig-sell { border-color: var(--sell); color: var(--sell); }
+    .sig-wait { border-color: var(--wait); color: var(--wait); }
+    .status {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .table-wrap { overflow-x: auto; margin-top: 8px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+    th, td {
+      padding: 7px 6px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>MT5 Screen-Record Order Helper</h1>
+  <div class="sub">Upload screen recording &rarr; pause on candle &rarr; confirm setup &rarr; get BUY / SELL / WAIT</div>
+
+  <section class="card">
+    <h2>1. Upload &amp; Scrub Screen Recording</h2>
+    <div class="row">
+      <label>
+        Pair
+        <select id="pairSelect">
+          <option value="XAUUSD">XAUUSD</option>
+          <option value="EURUSD">EURUSD</option>
+          <option value="GBPUSD">GBPUSD</option>
+        </select>
+      </label>
+      <label>
+        Timeframe
+        <select id="tfSelect">
+          <option value="5M">5M</option>
+          <option value="15M">15M</option>
+          <option value="30M">30M</option>
+          <option value="1H">1H</option>
+        </select>
+      </label>
+    </div>
+
+    <label style="margin-bottom:8px;">
+      Pick MT5 Screen Recording (MP4 / WebM)
+      <input id="videoInput" type="file" accept="video/*" />
+    </label>
+
+    <video id="recPlayer" controls playsinline></video>
+
+    <div class="row-3" style="margin-top:8px;">
+      <button type="button" class="secondary" id="back1s">-1.0s</button>
+      <button type="button" class="secondary" id="backFrame">-0.2s</button>
+      <button type="button" class="secondary" id="fwdFrame">+0.2s</button>
+    </div>
+    <div id="videoStatus" class="status">No recording loaded yet.</div>
+  </section>
+
+  <section class="card">
+    <h2>2. Setup Check &rarr; Order Decision</h2>
+
+    <div class="row">
+      <label>
+        10 EMA vs 20 EMA
+        <select id="emaState">
+          <option value="NONE">-- Select --</option>
+          <option value="BULL">10 EMA ABOVE 20 EMA</option>
+          <option value="BEAR">10 EMA BELOW 20 EMA</option>
+        </select>
+      </label>
+      <label>
+        Parabolic SAR (PSAR)
+        <select id="psarState">
+          <option value="NONE">-- Select --</option>
+          <option value="BELOW">PSAR BELOW Price (Bullish)</option>
+          <option value="ABOVE">PSAR ABOVE Price (Bearish)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>
+        CCI Position vs Indicators
+        <select id="cciState">
+          <option value="NONE">-- Select --</option>
+          <option value="ABOVE">CCI ABOVE Moving Avg &amp; PSAR</option>
+          <option value="BELOW">CCI BELOW Moving Avg &amp; PSAR</option>
+        </select>
+      </label>
+      <label>
+        Structure / FVG / Liquidity
+        <select id="structState">
+          <option value="OK">Clean / FVG or Liquidity Aligned</option>
+          <option value="CHOP">Choppy / Unclear</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="signalBox" class="signal-box sig-wait">
+      <span id="signalWord" class="signal-word">WAIT</span>
+      <span id="signalReason" class="signal-reason">Select 10/20 EMA, PSAR, and CCI alignment above.</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. Log Order (IndexedDB)</h2>
+    <form id="orderForm">
+      <div class="row-3">
+        <label>
+          Order
+          <input id="orderType" type="text" value="WAIT" readonly />
+        </label>
+        <label>
+          Lot Size
+          <input id="lotSize" type="number" step="0.01" min="0.01" value="0.01" required />
+        </label>
+        <label>
+          Video Time
+          <input id="vidTime" type="text" value="0.0s" readonly />
+        </label>
+      </div>
+      <div class="row-3">
+        <label>
+          Entry Price
+          <input id="entryPrice" type="number" step="any" placeholder="0.00" required />
+        </label>
+        <label>
+          Stop Loss
+          <input id="stopLoss" type="number" step="any" placeholder="0.00" required />
+        </label>
+        <label>
+          Take Profit
+          <input id="takeProfit" type="number" step="any" placeholder="0.00" required />
+        </label>
+      </div>
+      <div class="row">
+        <button type="submit">Save Order Decision</button>
+        <button type="button" id="clearOrdersBtn" class="danger">Clear Saved Orders</button>
+      </div>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Pair</th>
+            <th>TF</th>
+            <th>Order</th>
+            <th>Vid @</th>
+            <th>Lot</th>
+            <th>Entry</th>
+            <th>SL</th>
+            <th>TP</th>
+          </tr>
+        </thead>
+        <tbody id="orderBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    const DB_NAME = 'mt5_rec_order_helper';
+    const DB_VERSION = 1;
+    let db = null;
+    let currentVideoUrl = null;
+
+    const videoInput = document.getElementById('videoInput');
+    const recPlayer = document.getElementById('recPlayer');
+    const videoStatus = document.getElementById('videoStatus');
+    const vidTimeInput = document.getElementById('vidTime');
+
+    const emaState = document.getElementById('emaState');
+    const psarState = document.getElementById('psarState');
+    const cciState = document.getElementById('cciState');
+    const structState = document.getElementById('structState');
+
+    const signalBox = document.getElementById('signalBox');
+    const signalWord = document.getElementById('signalWord');
+    const signalReason = document.getElementById('signalReason');
+    const orderTypeInput = document.getElementById('orderType');
+
+    videoInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+      currentVideoUrl = URL.createObjectURL(file);
+      recPlayer.src = currentVideoUrl;
+      videoStatus.textContent = `Loaded: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`;
+    });
+
+    function seekBy(delta) {
+      if (!recPlayer.duration) return;
+      recPlayer.pause();
+      recPlayer.currentTime = Math.max(0, Math.min(recPlayer.duration, recPlayer.currentTime + delta));
+    }
+
+    document.getElementById('back1s').addEventListener('click', () => seekBy(-1.0));
+    document.getElementById('backFrame').addEventListener('click', () => seekBy(-0.2));
+    document.getElementById('fwdFrame').addEventListener('click', () => seekBy(0.2));
+
+    recPlayer.addEventListener('timeupdate', () => {
+      vidTimeInput.value = `${recPlayer.currentTime.toFixed(1)}s`;
+    });
+
+    function evaluateOrder() {
+      const ema = emaState.value;
+      const psar = psarState.value;
+      const cci = cciState.value;
+      const struct = structState.value;
+
+      let decision = 'WAIT';
+      let reason = 'Indicators are not aligned yet.';
+      let cls = 'sig-wait';
+
+      if (struct === 'CHOP') {
+        decision = 'WAIT';
+        reason = 'Market structure is choppy or unconfirmed.';
+      } else if (ema === 'BULL' && psar === 'BELOW' && cci === 'ABOVE') {
+        decision = 'BUY';
+        reason = 'Confirmed: 10 EMA > 20 EMA, PSAR below price, CCI above indicators.';
+        cls = 'sig-buy';
+      } else if (ema === 'BEAR' && psar === 'ABOVE' && cci === 'BELOW') {
+        decision = 'SELL';
+        reason = 'Confirmed: 10 EMA < 20 EMA, PSAR above price, CCI below indicators.';
+        cls = 'sig-sell';
+      } else {
+        decision = 'WAIT';
+        reason = 'Mixed signals — wait for 10/20 EMA, PSAR, and CCI to agree.';
+      }
+
+      signalBox.
+  
