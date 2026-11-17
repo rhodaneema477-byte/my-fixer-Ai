@@ -3,19 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5M EMA Lab &amp; Trade Log</title>
+  <title>EAT-Pulse TF Merger</title>
   <style>
     :root {
-      --bg: #0f172a;
+      --bg: #0b1120;
       --card: #1e293b;
       --border: #334155;
       --text: #f1f5f9;
       --muted: #94a3b8;
       --accent: #38bdf8;
-      --ema10: #facc15;
-      --ema20: #c084fc;
-      --win: #22c55e;
-      --loss: #ef4444;
+      --buy: #22c55e;
+      --sell: #ef4444;
+      --wait: #f59e0b;
     }
     * { box-sizing: border-box; }
     body {
@@ -27,8 +26,8 @@
       line-height: 1.4;
     }
     h1 { font-size: 1.15rem; margin: 0 0 4px; }
-    h2 { font-size: 0.95rem; margin: 0 0 10px; color: var(--accent); }
-    .sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+    h2 { font-size: 0.95rem; margin: 0 0 8px; color: var(--accent); }
+    .sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 12px; }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -55,14 +54,21 @@
       color: var(--muted);
       gap: 4px;
     }
-    input, select, button {
-      min-height: 44px;
+    input, select, textarea, button {
       border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--bg);
       color: var(--text);
       padding: 8px 10px;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
+      font-family: inherit;
+    }
+    input, select, button { min-height: 44px; }
+    textarea {
+      min-height: 110px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      width: 100%;
     }
     button {
       background: var(--accent);
@@ -70,607 +76,394 @@
       font-weight: 700;
       border: none;
       cursor: pointer;
+      width: 100%;
     }
     button.secondary {
       background: #334155;
       color: var(--text);
       font-weight: 600;
     }
-    button.danger {
-      background: #7f1d1d;
-      color: #fecaca;
-      font-weight: 600;
-    }
-    .status {
-      font-size: 0.8rem;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: #0b1120;
-      border: 1px solid var(--border);
-      margin-top: 8px;
-      word-break: break-word;
-    }
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .metric {
-      background: #0b1120;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px;
+    .signal-box {
       text-align: center;
+      padding: 14px 10px;
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      background: #070d19;
+      margin-top: 8px;
     }
-    .metric span { display: block; font-size: 0.7rem; color: var(--muted); }
-    .metric strong { font-size: 0.88rem; }
-    canvas {
-      width: 100%;
-      height: 210px;
+    .signal-word {
+      font-size: 1.8rem;
+      font-weight: 900;
+      letter-spacing: 1px;
       display: block;
-      background: #0b1120;
-      border: 1px solid var(--border);
-      border-radius: 8px;
     }
-    .legend {
-      display: flex;
-      gap: 12px;
-      font-size: 0.75rem;
+    .signal-reason {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+      display: block;
+    }
+    .sig-buy { border-color: var(--buy); color: var(--buy); }
+    .sig-sell { border-color: var(--sell); color: var(--sell); }
+    .sig-wait { border-color: var(--wait); color: var(--wait); }
+    .status {
+      font-size: 0.78rem;
       color: var(--muted);
       margin-top: 6px;
-      flex-wrap: wrap;
+      white-space: pre-line;
     }
-    .dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      margin-right: 4px;
-    }
-    .table-wrap {
-      overflow-x: auto;
-      margin-top: 8px;
-    }
+    .table-wrap { overflow-x: auto; margin-top: 8px; }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
     }
     th, td {
-      padding: 7px 6px;
+      padding: 6px;
       border-bottom: 1px solid var(--border);
       text-align: left;
       white-space: nowrap;
     }
-    .win { color: var(--win); font-weight: 700; }
-    .loss { color: var(--loss); font-weight: 700; }
-    .open { color: var(--accent); font-weight: 700; }
   </style>
 </head>
 <body>
-  <h1>5M EMA Lab &amp; Trade Log</h1>
-  <div class="sub">Local mobile Chrome starter (IndexedDB + 1-month 5M CSV + 10/20 EMA)</div>
+  <h1>EAT-Pulse TF Merger</h1>
+  <div class="sub">Pick timeframe &rarr; upload downloaded CSV &amp; paste screen-record CSV &rarr; convert to EAT &amp; run strategy</div>
 
-  <!-- 1. Pair & 5M CSV Loader -->
   <section class="card">
-    <h2>1. Pair &amp; 5M CSV Loader</h2>
+    <h2>1. Select Pair &amp; Timeframe Slot</h2>
     <div class="row">
       <label>
-        Active Pair
+        Pair
         <select id="pairSelect">
           <option value="XAUUSD">XAUUSD</option>
           <option value="EURUSD">EURUSD</option>
-          <option value="GBPUSD">GBPUSD</option>
         </select>
       </label>
       <label>
-        5M CSV File (1 Month)
-        <input id="csvInput" type="file" accept=".csv,text/csv" />
+        Timeframe Slot
+        <select id="tfSelect">
+          <option value="5M">5M</option>
+          <option value="15M">15M</option>
+          <option value="30M">30M</option>
+          <option value="1H">1H</option>
+          <option value="4H">4H</option>
+          <option value="1D">1D</option>
+        </select>
       </label>
     </div>
     <div class="row">
-      <button id="clearPairBtn" type="button" class="danger">Clear Pair Data</button>
-      <button id="stepLatestBtn" type="button" class="secondary">Refresh Latest Bar</button>
+      <label>
+        CSV Source Timezone
+        <select id="tzOffset">
+          <option value="3">UTC / GMT &rarr; EAT (+3h)</option>
+          <option value="0">Already EAT (0h)</option>
+          <option value="2">UTC+1 &rarr; EAT (+2h)</option>
+          <option value="1">UTC+2 &rarr; EAT (+1h)</option>
+        </select>
+      </label>
+      <label>
+        Structure / FVG / Liquidity
+        <select id="structFilter">
+          <option value="OK">Clean / Aligned</option>
+          <option value="CHOP">Choppy / Unclear</option>
+        </select>
+      </label>
     </div>
-    <div id="csvStatus" class="status">Initializing IndexedDB...</div>
-
-    <div class="metrics">
-      <div class="metric"><span>Bars</span><strong id="mBars">0</strong></div>
-      <div class="metric"><span>Close</span><strong id="mClose">-</strong></div>
-      <div class="metric"><span>10 EMA</span><strong id="mEma10" style="color:var(--ema10)">-</strong></div>
-      <div class="metric"><span>20 EMA</span><strong id="mEma20" style="color:var(--ema20)">-</strong></div>
-    </div>
+    <div id="slotSummary" class="status">Active Slot: XAUUSD 5M (0 merged candles)</div>
   </section>
 
-  <!-- 2. Lightweight 5M Chart -->
   <section class="card">
-    <h2>2. 5M Chart (Last 250 Bars)</h2>
-    <canvas id="chartCanvas" width="600" height="210"></canvas>
-    <div class="legend">
-      <span><i class="dot" style="background:#22c55e"></i>Bull</span>
-      <span><i class="dot" style="background:#ef4444"></i>Bear</span>
-      <span><i class="dot" style="background:var(--ema10)"></i>10 EMA</span>
-      <span><i class="dot" style="background:var(--ema20)"></i>20 EMA</span>
-      <span id="signalText">Signal: Neutral</span>
-    </div>
+    <h2>2. Upload Downloaded CSV (For Selected Timeframe)</h2>
+    <input id="csvFileInput" type="file" accept=".csv,text/csv,text/plain" />
+    <div id="fileStatus" class="status">No downloaded CSV uploaded for this slot yet.</div>
   </section>
 
-  <!-- 3. Trade Log -->
   <section class="card">
-    <h2>3. Trade Log</h2>
-    <form id="tradeForm">
-      <div class="row-3">
-        <label>
-          Direction
-          <select id="direction">
-            <option value="BUY">BUY</option>
-            <option value="SELL">SELL</option>
-          </select>
-        </label>
-        <label>
-          Lot Size
-          <input id="lotSize" type="number" step="0.01" min="0.01" value="0.01" required />
-        </label>
-        <label>
-          Outcome
-          <select id="outcome">
-            <option value="OPEN">OPEN</option>
-            <option value="WIN">WIN</option>
-            <option value="LOSS">LOSS</option>
-          </select>
-        </label>
-      </div>
-      <div class="row-3">
-        <label>
-          Entry
-          <input id="entryPrice" type="number" step="any" required />
-        </label>
-        <label>
-          Stop Loss
-          <input id="stopLoss" type="number" step="any" required />
-        </label>
-        <label>
-          Take Profit
-          <input id="takeProfit" type="number" step="any" required />
-        </label>
-      </div>
-      <div class="row">
-        <label>
-          Rule / Note
-          <input id="tradeNote" type="text" placeholder="e.g. 10/20 EMA pullback" />
-        </label>
-        <label>
-          &nbsp;
-          <button type="submit">Log Trade</button>
-        </label>
-      </div>
-    </form>
-
-    <div class="metrics">
-      <div class="metric"><span>Trades</span><strong id="tTotal">0</strong></div>
-      <div class="metric"><span>Wins</span><strong id="tWins" class="win">0</strong></div>
-      <div class="metric"><span>Losses</span><strong id="tLosses" class="loss">0</strong></div>
-      <div class="metric"><span>Win %</span><strong id="tRate">0%</strong></div>
-    </div>
-
+    <h2>3. Paste Screen-Record CSV (Copy-Paste Block)</h2>
+    <div class="sub" style="margin-bottom:6px;">Format: Time,Open,High,Low,Close (one candle per line)</div>
+    <textarea id="pasteCsvInput" placeholder="2026-11-17 17:30,2610.50,2614.00,2609.00,2613.20&#10;2026-11-17 17:35,2613.20,2615.80,2611.50,2615.10"></textarea>
     <div class="row" style="margin-top:8px;">
-      <button id="exportTradesBtn" type="button" class="secondary">Export Trades CSV</button>
-      <button id="clearTradesBtn" type="button" class="danger">Clear Trade Log</button>
+      <button type="button" id="mergeBtn">Mix CSV + Pasted &amp; Calculate</button>
+      <button type="button" class="secondary" id="clearSlotBtn">Clear This Slot</button>
     </div>
+    <div id="mergeStatus" class="status">Ready to merge.</div>
+  </section>
+
+  <section class="card">
+    <h2>4. Strategy Output (10/20 EMA, PSAR, CCI)</h2>
+    <div id="signalBox" class="signal-box sig-wait">
+      <span id="signalWord" class="signal-word">WAIT</span>
+      <span id="signalReason" class="signal-reason">Upload/paste candles for a timeframe and tap Mix &amp; Calculate.</span>
+    </div>
+    <div id="indicatorReadout" class="status">10 EMA: - | 20 EMA: - | PSAR: - | CCI: -</div>
 
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Pair</th>
-            <th>Side</th>
-            <th>Lot</th>
-            <th>Entry</th>
-            <th>SL</th>
-            <th>TP</th>
-            <th>Result</th>
-            <th>Note</th>
+            <th>Time (EAT)</th>
+            <th>Open</th>
+            <th>High</th>
+            <th>Low</th>
+            <th>Close</th>
+            <th>10 EMA</th>
+            <th>20 EMA</th>
+            <th>PSAR</th>
+            <th>CCI</th>
           </tr>
         </thead>
-        <tbody id="tradeBody"></tbody>
+        <tbody id="candleBody"></tbody>
       </table>
     </div>
   </section>
 
   <script>
-    const DB_NAME = 'fx_5m_ema_lab';
-    const DB_VERSION = 1;
-    let db = null;
-    let activeCandles = [];
+    const STORAGE_KEY = 'mt5_tf_csv_merger_v1';
+    let store = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    let uploadedRowsForCurrentSlot = [];
 
     const pairSelect = document.getElementById('pairSelect');
-    const csvInput = document.getElementById('csvInput');
-    const csvStatus = document.getElementById('csvStatus');
+    const tfSelect = document.getElementById('tfSelect');
+    const tzOffset = document.getElementById('tzOffset');
+    const structFilter = document.getElementById('structFilter');
+    const csvFileInput = document.getElementById('csvFileInput');
+    const pasteCsvInput = document.getElementById('pasteCsvInput');
+    const slotSummary = document.getElementById('slotSummary');
+    const fileStatus = document.getElementById('fileStatus');
+    const mergeStatus = document.getElementById('mergeStatus');
 
-    function setStatus(msg) {
-      csvStatus.textContent = msg;
+    function slotKey() {
+      return `${pairSelect.value}_${tfSelect.value}`;
     }
 
-    // IndexedDB initialization
-    function openDB() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = (e) => {
-          const database = e.target.result;
-          if (!database.objectStoreNames.contains('candles')) {
-            database.createObjectStore('candles', { keyPath: 'pair' });
-          }
-          if (!database.objectStoreNames.contains('trades')) {
-            database.createObjectStore('trades', { keyPath: 'id', autoIncrement: true });
-          }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
+    function saveStore() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     }
 
-    function idbPut(storeName, value) {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        tx.objectStore(storeName).put(value);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
+    function parseTimestampToEAT(rawTime, addHours) {
+      const cleaned = String(rawTime || '').trim().replace(/\./g, '-').replace(/\//g, '-').replace('T', ' ');
+      const parsed = Date.parse(cleaned.includes(' ') ? cleaned : cleaned + ' 00:00:00');
+      if (Number.isNaN(parsed)) return null;
+      const eatMs = parsed + addHours * 3600 * 1000;
+      const d = new Date(eatMs);
+      const pad = (n) => String(n).padStart(2, '0');
+      const label = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+      return { ms: eatMs, label };
     }
 
-    function idbGet(storeName, key) {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readonly');
-        const req = tx.objectStore(storeName).get(key);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    function idbGetAll(storeName) {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readonly');
-        const req = tx.objectStore(storeName).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    function idbClear(storeName) {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        tx.objectStore(storeName).clear();
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    }
-
-    // Standard SMA-seeded EMA calculation
-    function calculateEMA(closes, period) {
-      const result = new Array(closes.length).fill(null);
-      if (closes.length < period) return result;
-      let sum = 0;
-      for (let i = 0; i < period; i++) sum += closes[i];
-      let prev = sum / period;
-      result[period - 1] = prev;
-      const multiplier = 2 / (period + 1);
-      for (let i = period; i < closes.length; i++) {
-        prev = (closes[i] - prev) * multiplier + prev;
-        result[i] = prev;
-      }
-      return result;
-    }
-
-    // Flexible 5M CSV parser (supports comma, semicolon, tab; header or headerless OHLC)
-    function parse5MCSV(text) {
-      const clean = text.replace(/^\uFEFF/, '').trim();
-      if (!clean) return { candles: [], skipped: 0, error: 'Empty CSV file.' };
-
-      const lines = clean.split(/\r?\n/).filter(Boolean);
-      const delimiter = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
-      const firstCells = lines[0].split(delimiter).map(c => c.trim().toLowerCase());
-
-      let idxTime = 0, idxOpen = 1, idxHigh = 2, idxLow = 3, idxClose = 4;
-      let startRow = 0;
-
-      const hasHeader = firstCells.some(c =>
-        ['time', 'timestamp', 'date', 'datetime', 'open', 'close'].includes(c)
-      );
-
-      if (hasHeader) {
-        startRow = 1;
-        const findCol = (names, fallback) => {
-          const found = firstCells.findIndex(c => names.includes(c));
-          return found >= 0 ? found : fallback;
-        };
-        idxTime = findCol(['timestamp', 'time', 'datetime', 'date'], 0);
-        idxOpen = findCol(['open', 'o'], 1);
-        idxHigh = findCol(['high', 'h'], 2);
-        idxLow = findCol(['low', 'l'], 3);
-        idxClose = findCol(['close', 'c'], 4);
-      }
-
-      const candles = [];
-      let skipped = 0;
-
-      for (let i = startRow; i < lines.length; i++) {
-        const cols = lines[i].split(delimiter).map(c => c.trim());
-        if (cols.length < 5) {
-          skipped++;
-          continue;
+    function parseCSVText(text, addHours) {
+      const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const rows = [];
+      for (const line of lines) {
+        const parts = line.split(/[,;\t]+/).map(p => p.trim());
+        if (parts.length < 5) continue;
+        let timeStr = parts[0];
+        let o, h, l, c;
+        if (parts.length >= 6 && /^\d{1,2}:\d{2}/.test(parts[1])) {
+          timeStr = `${parts[0]} ${parts[1]}`;
+          o = parseFloat(parts[2]);
+          h = parseFloat(parts[3]);
+          l = parseFloat(parts[4]);
+          c = parseFloat(parts[5]);
+        } else {
+          o = parseFloat(parts[1]);
+          h = parseFloat(parts[2]);
+          l = parseFloat(parts[3]);
+          c = parseFloat(parts[4]);
         }
-        const tsRaw = cols[idxTime];
-        const open = parseFloat(cols[idxOpen]);
-        const high = parseFloat(cols[idxHigh]);
-        const low = parseFloat(cols[idxLow]);
-        const close = parseFloat(cols[idxClose]);
-
-        if (!tsRaw || [open, high, low, close].some(Number.isNaN)) {
-          skipped++;
-          continue;
-        }
-        candles.push({ time: tsRaw, open, high, low, close });
+        if ([o, h, l, c].some(Number.isNaN)) continue;
+        const ts = parseTimestampToEAT(timeStr, addHours);
+        if (!ts) continue;
+        rows.push({ ms: ts.ms, timeEAT: ts.label, open: o, high: h, low: l, close: c });
       }
-
-      candles.sort((a, b) => {
-        const ta = Date.parse(a.time);
-        const tb = Date.parse(b.time);
-        if (!Number.isNaN(ta) && !Number.isNaN(tb)) return ta - tb;
-        return a.time.localeCompare(b.time);
-      });
-
-      return { candles, skipped, error: null };
+      return rows;
     }
 
-    function renderMetrics(candles) {
-      const mBars = document.getElementById('mBars');
-      const mClose = document.getElementById('mClose');
-      const mEma10 = document.getElementById('mEma10');
-      const mEma20 = document.getElementById('mEma20');
-      const signalText = document.getElementById('signalText');
+    function computeIndicators(candles) {
+      if (!candles.length) return [];
+      const k10 = 2 / (10 + 1);
+      const k20 = 2 / (20 + 1);
+      let ema10 = candles[0].close;
+      let ema20 = candles[0].close;
 
-      mBars.textContent = candles.length;
-      if (!candles.length) {
-        mClose.textContent = '-';
-        mEma10.textContent = '-';
-        mEma20.textContent = '-';
-        signalText.textContent = 'Signal: Neutral';
-        return;
-      }
+      let af = 0.02;
+      const afStep = 0.02;
+      const afMax = 0.2;
+      let isLong = true;
+      let ep = candles[0].high;
+      let sar = candles[0].low;
 
-      const closes = candles.map(c => c.close);
-      const ema10 = calculateEMA(closes, 10);
-      const ema20 = calculateEMA(closes, 20);
-      const lastIdx = candles.length - 1;
+      return candles.map((c, idx) => {
+        if (idx > 0) {
+          ema10 = c.close * k10 + ema10 * (1 - k10);
+          ema20 = c.close * k20 + ema20 * (1 - k20);
 
-      const lastClose = closes[lastIdx];
-      const last10 = ema10[lastIdx];
-      const last20 = ema20[lastIdx];
-
-      mClose.textContent = lastClose.toFixed(2);
-      mEma10.textContent = last10 !== null ? last10.toFixed(2) : '-';
-      mEma20.textContent = last20 !== null ? last20.toFixed(2) : '-';
-
-      if (last10 !== null && last20 !== null) {
-        signalText.textContent = last10 > last20
-          ? 'Signal: 10 EMA > 20 EMA (Bullish bias)'
-          : 'Signal: 10 EMA < 20 EMA (Bearish bias)';
-      }
-    }
-
-    function renderChart(candles) {
-      const canvas = document.getElementById('chartCanvas');
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      if (!candles.length) {
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '14px system-ui';
-        ctx.fillText('Upload a 1-month 5M CSV to render candles & 10/20 EMA', 16, 36);
-        return;
-      }
-
-      const slice = candles.slice(-250);
-      const closes = slice.map(c => c.close);
-      const ema10 = calculateEMA(closes, 10);
-      const ema20 = calculateEMA(closes, 20);
-
-      let minP = Infinity;
-      let maxP = -Infinity;
-      for (const c of slice) {
-        if (c.low < minP) minP = c.low;
-        if (c.high > maxP) maxP = c.high;
-      }
-      const pad = (maxP - minP) * 0.08 || 1;
-      minP -= pad;
-      maxP += pad;
-
-      const xStep = w / slice.length;
-      const yFor = (price) => h - 12 - ((price - minP) / (maxP - minP)) * (h - 24);
-
-      // Draw candles
-      slice.forEach((c, i) => {
-        const x = i * xStep + xStep * 0.5;
-        const yOpen = yFor(c.open);
-        const yClose = yFor(c.close);
-        const yHigh = yFor(c.high);
-        const yLow = yFor(c.low);
-        const bull = c.close >= c.open;
-
-        ctx.strokeStyle = bull ? '#22c55e' : '#ef4444';
-        ctx.fillStyle = bull ? '#22c55e' : '#ef4444';
-
-        ctx.beginPath();
-        ctx.moveTo(x, yHigh);
-        ctx.lineTo(x, yLow);
-        ctx.stroke();
-
-        const bodyTop = Math.min(yOpen, yClose);
-        const bodyH = Math.max(2, Math.abs(yClose - yOpen));
-        ctx.fillRect(x - Math.max(1, xStep * 0.3), bodyTop, Math.max(2, xStep * 0.6), bodyH);
-      });
-
-      // Draw EMA line helper
-      function drawLine(arr, color) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        let started = false;
-        arr.forEach((val, i) => {
-          if (val === null) return;
-          const x = i * xStep + xStep * 0.5;
-          const y = yFor(val);
-          if (!started) {
-            ctx.moveTo(x, y);
-            started = true;
+          sar = sar + af * (ep - sar);
+          if (isLong) {
+            if (c.low < sar) {
+              isLong = false;
+              sar = ep;
+              ep = c.low;
+              af = afStep;
+            } else {
+              if (c.high > ep) {
+                ep = c.high;
+                af = Math.min(afMax, af + afStep);
+              }
+            }
           } else {
-            ctx.lineTo(x, y);
+            if (c.high > sar) {
+              isLong = true;
+              sar = ep;
+              ep = c.high;
+              af = afStep;
+            } else {
+              if (c.low < ep) {
+                ep = c.low;
+                af = Math.min(afMax, af + afStep);
+              }
+            }
           }
-        });
-        ctx.stroke();
-      }
+        }
 
-      drawLine(ema10, '#facc15');
-      drawLine(ema20, '#c084fc');
+        const period = 14;
+        const start = Math.max(0, idx - period + 1);
+        const slice = candles.slice(start, idx + 1);
+        const tps = slice.map(x => (x.high + x.low + x.close) / 3);
+        const tpNow = tps[tps.length - 1];
+        const smaTp = tps.reduce((a, b) => a + b, 0) / tps.length;
+        const meanDev = tps.reduce((a, b) => a + Math.abs(b - smaTp), 0) / tps.length;
+        const cci = meanDev === 0 ? 0 : (tpNow - smaTp) / (0.015 * meanDev);
+
+        return {
+          ...c,
+          ema10,
+          ema20,
+          sar,
+          sarIsLong: isLong,
+          cci
+        };
+      });
     }
 
-    async function loadPairFromDB(pair) {
-      const record = await idbGet('candles', pair);
-      activeCandles = record ? record.candles : [];
-      renderMetrics(activeCandles);
-      renderChart(activeCandles);
+    function renderSlot() {
+      const key = slotKey();
+      const slot = store[key] || { candles: [], pastedText: '' };
+      pasteCsvInput.value = slot.pastedText || '';
+      slotSummary.textContent = `Active Slot: ${pairSelect.value} ${tfSelect.value} (${slot.candles.length} merged candles)`;
 
-      if (activeCandles.length) {
-        const first = activeCandles[0].time;
-        const last = activeCandles[activeCandles.length - 1].time;
-        setStatus(`${pair}: ${activeCandles.length} 5M bars loaded (${first} -> ${last})`);
-      } else {
-        setStatus(`${pair}: No 5M CSV loaded yet. Pick a 1-month 5M file.`);
-      }
-    }
-
-    async function renderTrades() {
-      const trades = await idbGetAll('trades');
-      const tbody = document.getElementById('tradeBody');
+      const enriched = computeIndicators(slot.candles);
+      const tbody = document.getElementById('candleBody');
       tbody.innerHTML = '';
 
-      let wins = 0;
-      let losses = 0;
-
-      trades.slice().reverse().forEach((t) => {
-        if (t.outcome === 'WIN') wins++;
-        if (t.outcome === 'LOSS') losses++;
-
+      enriched.slice(-25).reverse().forEach(r => {
         const tr = document.createElement('tr');
-        const cls = t.outcome === 'WIN' ? 'win' : (t.outcome === 'LOSS' ? 'loss' : 'open');
         tr.innerHTML = `
-          <td>${t.pair}</td>
-          <td>${t.direction}</td>
-          <td>${t.lotSize}</td>
-          <td>${t.entry}</td>
-          <td>${t.stopLoss}</td>
-          <td>${t.takeProfit}</td>
-          <td class="${cls}">${t.outcome}</td>
-          <td>${t.note || ''}</td>
+          <td>${r.timeEAT}</td>
+          <td>${r.open}</td>
+          <td>${r.high}</td>
+          <td>${r.low}</td>
+          <td>${r.close}</td>
+          <td>${r.ema10.toFixed(2)}</td>
+          <td>${r.ema20.toFixed(2)}</td>
+          <td>${r.sar.toFixed(2)} (${r.sarIsLong ? 'B' : 'S'})</td>
+          <td>${r.cci.toFixed(1)}</td>
         `;
         tbody.appendChild(tr);
       });
 
-      const closed = wins + losses;
-      document.getElementById('tTotal').textContent = trades.length;
-      document.getElementById('tWins').textContent = wins;
-      document.getElementById('tLosses').textContent = losses;
-      document.getElementById('tRate').textContent = closed ? `${Math.round((wins / closed) * 100)}%` : '0%';
+      const signalBox = document.getElementById('signalBox');
+      const signalWord = document.getElementById('signalWord');
+      const signalReason = document.getElementById('signalReason');
+      const readout = document.getElementById('indicatorReadout');
+
+      if (!enriched.length) {
+        signalBox.className = 'signal-box sig-wait';
+        signalWord.textContent = 'WAIT';
+        signalReason.textContent = 'No merged candles in this timeframe slot yet.';
+        readout.textContent = '10 EMA: - | 20 EMA: - | PSAR: - | CCI: -';
+        return;
+      }
+
+      const last = enriched[enriched.length - 1];
+      const indAvg = (last.ema10 + last.ema20 + last.sar) / 3;
+      const cciAbove = last.cci > indAvg;
+      const cciBelow = last.cci < indAvg;
+
+      readout.textContent =
+        `Last (${last.timeEAT} EAT) -> 10 EMA: ${last.ema10.toFixed(2)} | 20 EMA: ${last.ema20.toFixed(2)} | PSAR: ${last.sar.toFixed(2)} | CCI: ${last.cci.toFixed(1)}`;
+
+      if (structFilter.value === 'CHOP') {
+        signalBox.className = 'signal-box sig-wait';
+        signalWord.textContent = 'WAIT';
+        signalReason.textContent = 'Structure marked choppy/unclear.';
+      } else if (last.ema10 > last.ema20 && last.sarIsLong && cciAbove) {
+        signalBox.className = 'signal-box sig-buy';
+        signalWord.textContent = 'BUY';
+        signalReason.textContent = '10 EMA > 20 EMA, PSAR below price, CCI above indicators.';
+      } else if (last.ema10 < last.ema20 && !last.sarIsLong && cciBelow) {
+        signalBox.className = 'signal-box sig-sell';
+        signalWord.textContent = 'SELL';
+        signalReason.textContent = '10 EMA < 20 EMA, PSAR above price, CCI below indicators.';
+      } else {
+        signalBox.className = 'signal-box sig-wait';
+        signalWord.textContent = 'WAIT';
+        signalReason.textContent = 'Indicators not fully aligned on latest merged candle.';
+      }
     }
 
-    // Event Listeners
-    csvInput.addEventListener('change', async (e) => {
+    csvFileInput.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      const pair = pairSelect.value;
-      setStatus(`Reading ${file.name}...`);
-
-      try {
-        const text = await file.text();
-        const { candles, skipped, error } = parse5MCSV(text);
-        if (error || !candles.length) {
-          setStatus(`Import failed: ${error || 'No valid OHLC rows found.'}`);
-          return;
-        }
-        await idbPut('candles', { pair, candles, updatedAt: Date.now() });
-        activeCandles = candles;
-        renderMetrics(activeCandles);
-        renderChart(activeCandles);
-        setStatus(`${pair}: Saved ${candles.length} 5M bars (${skipped} skipped).`);
-      } catch (err) {
-        setStatus(`Error loading CSV: ${err.message}`);
-      }
-      csvInput.value = '';
+      const text = await file.text();
+      const addHours = parseFloat(tzOffset.value || '3');
+      uploadedRowsForCurrentSlot = parseCSVText(text, addHours);
+      fileStatus.textContent = `Loaded ${file.name}: ${uploadedRowsForCurrentSlot.length} valid rows converted to EAT.`;
     });
 
-    pairSelect.addEventListener('change', () => loadPairFromDB(pairSelect.value));
+    document.getElementById('mergeBtn').addEventListener('click', () => {
+      const key = slotKey();
+      const addHours = parseFloat(tzOffset.value || '3');
+      const pastedText = pasteCsvInput.value;
+      const pastedRows = parseCSVText(pastedText, addHours);
 
-    document.getElementById('clearPairBtn').addEventListener('click', async () => {
-      const pair = pairSelect.value;
-      await idbPut('candles', { pair, candles: [], updatedAt: Date.now() });
-      await loadPairFromDB(pair);
+      const map = new Map();
+      [...uploadedRowsForCurrentSlot, ...pastedRows].forEach(r => {
+        map.set(r.ms, r);
+      });
+
+      const merged = Array.from(map.values()).sort((a, b) => a.ms - b.ms);
+      store[key] = { candles: merged, pastedText };
+      saveStore();
+
+      mergeStatus.textContent =
+        `Merged ${pairSelect.value} ${tfSelect.value}: ${uploadedRowsForCurrentSlot.length} file + ${pastedRows.length} pasted -> ${merged.length} unique EAT candles.`;
+      renderSlot();
     });
 
-    document.getElementById('stepLatestBtn').addEventListener('click', () => {
-      renderMetrics(activeCandles);
-      renderChart(activeCandles);
+    document.getElementById('clearSlotBtn').addEventListener('click', () => {
+      const key = slotKey();
+      delete store[key];
+      uploadedRowsForCurrentSlot = [];
+      csvFileInput.value = '';
+      pasteCsvInput.value = '';
+      saveStore();
+      fileStatus.textContent = 'Cleared slot.';
+      mergeStatus.textContent = `Cleared ${key}.`;
+      renderSlot();
     });
 
-    document.getElementById('tradeForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const trade = {
-        pair: pairSelect.value,
-        direction: document.getElementById('direction').value,
-        lotSize: parseFloat(document.getElementById('lotSize').value),
-        entry: parseFloat(document.getElementById('entryPrice').value),
-        stopLoss: parseFloat(document.getElementById('stopLoss').value),
-        takeProfit: parseFloat(document.getElementById('takeProfit').value),
-        outcome: document.getElementById('outcome').value,
-        note: document.getElementById('tradeNote').value.trim(),
-        createdAt: new Date().toISOString()
-      };
-      await idbPut('trades', trade);
-      document.getElementById('tradeNote').value = '';
-      await renderTrades();
-    });
+    [pairSelect, tfSelect].forEach(el => el.addEventListener('change', () => {
+      uploadedRowsForCurrentSlot = [];
+      csvFileInput.value = '';
+      renderSlot();
+    }));
 
-    document.getElementById('clearTradesBtn').addEventListener('click', async () => {
-      await idbClear('trades');
-      await renderTrades();
-    });
+    [tzOffset, structFilter].forEach(el => el.addEventListener('change', renderSlot));
 
-    document.getElementById('exportTradesBtn').addEventListener('click', async () => {
-      const trades = await idbGetAll('trades');
-      if (!trades.length) return;
-      const headers = ['id', 'createdAt', 'pair', 'direction', 'lotSize', 'entry', 'stopLoss', 'takeProfit', 'outcome', 'note'];
-      const rows = trades.map(t => headers.map(h => JSON.stringify(t[h] ?? '')).join(','));
-      const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '5m_ema_trade_log.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-
-    // Startup
-    (async function init() {
-      try {
-        db = await openDB();
-        await loadPairFromDB(pairSelect.value);
-        await renderTrades();
-      } catch (err) {
-        setStatus(`IndexedDB error: ${err.message}`);
-      }
-    })();
+    renderSlot();
   </script>
 </body>
-</html>
+    </html>
+  
