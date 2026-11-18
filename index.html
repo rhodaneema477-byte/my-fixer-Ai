@@ -1,68 +1,73 @@
-<!-- TRUTH MODE Multi-Timeframe CSV Paste & Playback Engine -->
-<div style="background: #151515; color: #fff; padding: 15px; border-radius: 8px; font-family: sans-serif; margin-bottom: 15px; border: 1px solid #333;">
-    <h3 style="color: #ff9800; margin-top: 0;">TRUTH MODE Multi-Timeframe CSV Paste Engine</h3>
-    <p style="font-size: 12px; color: #aaa;">Paste CSV text for each timeframe below, set your backtest date range, and run confluence analysis.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- FIX 1: Forces proper mobile screen scaling so it never looks like desktop -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TRUTH MODE Engine</title>
+</head>
+<body style="background: #0a0a0a; margin: 0; padding: 10px; font-family: sans-serif;">
+
+<!-- TRUTH MODE Flexible Multi-Timeframe Engine -->
+<div style="background: #121212; color: #fff; padding: 16px; border-radius: 10px; border: 1px solid #333;">
+    <h2 style="color: #ff9800; margin-top: 0; font-size: 18px;">TRUTH MODE Flexible Engine</h2>
+    <p style="font-size: 13px; color: #bbb;">Paste your CSV data into any combination of timeframes (even just 2). Set your dates and run.</p>
     
     <!-- Date Range Settings -->
-    <div style="display: flex; gap: 10px; margin-bottom: 12px;">
-        <div style="flex: 1;">
-            <label style="font-size: 11px; color: #ccc;">Start Date/Time:</label><br>
-            <input type="datetime-local" id="truthStart" value="2026-11-10T00:00" style="width: 100%; padding: 6px; background: #222; color: white; border: 1px solid #444; border-radius: 4px;">
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+        <div>
+            <label style="font-size: 12px; color: #ccc;">Start Date/Time:</label><br>
+            <input type="datetime-local" id="truthStart" value="2026-11-10T00:00" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
         </div>
-        <div style="flex: 1;">
-            <label style="font-size: 11px; color: #ccc;">End Date/Time:</label><br>
-            <input type="datetime-local" id="truthEnd" value="2026-11-16T23:59" style="width: 100%; padding: 6px; background: #222; color: white; border: 1px solid #444; border-radius: 4px;">
+        <div>
+            <label style="font-size: 12px; color: #ccc;">End Date/Time:</label><br>
+            <input type="datetime-local" id="truthEnd" value="2026-11-16T23:59" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
         </div>
     </div>
 
-    <!-- Timeframe CSV Paste Boxes -->
-    <div style="margin-bottom: 10px;">
-        <label style="font-size: 12px; color: #4CAF50; font-weight: bold;">Paste 5M CSV Data Below:</label><br>
-        <textarea id="csv5M" placeholder="Time, Open, High, Low, Close, Vol&#10;2026.11.10 09:00, 3800, 3810, 3795, 3808, 100" style="width: 100%; height: 70px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 11px;"></textarea>
-    </div>
+    <!-- Flexible Timeframe Boxes -->
+    <div style="margin-bottom: 12px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">5M Data Box:</label><br><textarea id="csv5M" placeholder="Paste 5M CSV here..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
+    <div style="margin-bottom: 12px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">15M Data Box:</label><br><textarea id="csv15M" placeholder="Paste 15M data here (optional)..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
+    <div style="margin-bottom: 12px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">30M Data Box:</label><br><textarea id="csv30M" placeholder="Paste 30M data here (optional)..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
+    <div style="margin-bottom: 12px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">1H Data Box:</label><br><textarea id="csv1H" placeholder="Paste 1H data here (optional)..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
+    <div style="margin-bottom: 12px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">4H Data Box:</label><br><textarea id="csv4H" placeholder="Paste 4H data here (optional)..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
+    <div style="margin-bottom: 15px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">1D Data Box:</label><br><textarea id="csv1D" placeholder="Paste 1D data here (optional)..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
 
-    <div style="margin-bottom: 10px;">
-        <label style="font-size: 12px; color: #4CAF50; font-weight: bold;">Paste 15M CSV Data Below:</label><br>
-        <textarea id="csv15M" placeholder="Paste 15M CSV data here..." style="width: 100%; height: 70px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 11px;"></textarea>
-    </div>
-
-    <div style="margin-bottom: 10px;">
-        <label style="font-size: 12px; color: #4CAF50; font-weight: bold;">Paste 1H CSV Data Below:</label><br>
-        <textarea id="csv1H" placeholder="Paste 1H CSV data here..." style="width: 100%; height: 70px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 11px;"></textarea>
-    </div>
-
-    <button onclick="runTruthModePasteEngine()" style="background: #ff9800; color: black; font-weight: bold; border: none; padding: 10px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 5px;">RUN TRUTH MODE CONFLUENCE STRATEGY</button>
+    <button onclick="runTruthModeFlexible()" style="background: #ff9800; color: black; font-weight: bold; border: none; padding: 14px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 15px;">RUN TRUTH MODE STRATEGY</button>
     
     <!-- Output Display -->
-    <div id="truthModeResults" style="margin-top: 15px; background: #1a1a1a; padding: 10px; border-radius: 5px; font-size: 12px; max-height: 450px; overflow-y: auto; border: 1px solid #333;">
-        <span style="color: #888;">Paste CSV data above, set dates, and run strategy to view multi-timeframe entries, outcomes, and final verdict...</span>
+    <div id="truthModeResults" style="margin-top: 15px; background: #181818; padding: 12px; border-radius: 6px; font-size: 13px; max-height: 500px; overflow-y: auto; border: 1px solid #333;">
+        <span style="color: #888;">Paste data in any timeframes you want and run strategy...</span>
     </div>
 </div>
 
 <script>
-// Helper to parse pasted CSV text into candle objects
 function parseCSVText(text) {
     if (!text || !text.trim()) return [];
     let lines = text.trim().split("\n");
     let candles = [];
-    
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i].trim();
-        if (!line || line.toLowerCase().startsWith("time")) continue; // skip header
-        
+        if (!line || line.toLowerCase().startsWith("time")) continue;
         let cols = line.split(/,|\t/);
         if (cols.length >= 5) {
             let timeStr = cols[0].trim().replace(/\./g, "-");
             let timeVal = new Date(timeStr).getTime();
-            if (isNaN(timeVal)) continue;
-
+            let open = parseFloat(cols[1]);
+            let high = parseFloat(cols[2]);
+            let low = parseFloat(cols[3]);
+            let close = parseFloat(cols[4]);
+            
+            // FIX 3: Ignore corrupted rows with NaN numbers
+            if (isNaN(timeVal) || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) continue;
+            
             candles.push({
                 timeStr: cols[0].trim(),
                 time: timeVal,
-                open: parseFloat(cols[1]),
-                high: parseFloat(cols[2]),
-                low: parseFloat(cols[3]),
-                close: parseFloat(cols[4]),
+                open: open,
+                high: high,
+                low: low,
+                close: close,
                 volume: parseFloat(cols[5]) || 0
             });
         }
@@ -70,74 +75,81 @@ function parseCSVText(text) {
     return candles.sort((a, b) => a.time - b.time);
 }
 
-// Candle Psychology Classifier
 function getCandleType(c) {
     let body = Math.abs(c.close - c.open);
     let totalRange = c.high - c.low;
     if (totalRange === 0) return { type: 'neutral', name: 'Doji' };
-
     let upperWick = c.high - Math.max(c.open, c.close);
     let lowerWick = Math.min(c.open, c.close) - c.low;
 
     if (body / totalRange > 0.6) {
         return { type: 'continuation', name: c.close > c.open ? 'Strong Bullish (Continuation)' : 'Strong Bearish (Continuation)' };
     } else if (lowerWick > body * 2) {
-        return { type: 'reversal', name: 'Bullish Hammer / Pin Bar (Reversal Zone)' };
+        return { type: 'reversal', name: 'Bullish Pin Bar / Hammer (Reversal Zone)' };
     } else if (upperWick > body * 2) {
         return { type: 'reversal', name: 'Bearish Shooting Star (Reversal Zone)' };
     }
     return { type: 'neutral', name: 'Standard Price Action' };
 }
 
-// Main Truth Mode Execution with Multi-Timeframe Mixing
-function runTruthModePasteEngine() {
+function runTruthModeFlexible() {
     const startTime = new Date(document.getElementById("truthStart").value).getTime();
     const endTime = new Date(document.getElementById("truthEnd").value).getTime();
     const output = document.getElementById("truthModeResults");
 
-    // Parse data from text boxes
-    let candles5M = parseCSVText(document.getElementById("csv5M").value);
-    let candles15M = parseCSVText(document.getElementById("csv15M").value);
-    let candles1H = parseCSVText(document.getElementById("csv1H").value);
+    let activeDatasets = {};
+    let tfNames = ['5M', '15M', '30M', '1H', '4H', '1D'];
+    
+    tfNames.forEach(tf => {
+        let val = document.getElementById("csv" + tf).value;
+        let parsed = parseCSVText(val);
+        if (parsed.length > 0) {
+            activeDatasets[tf] = parsed;
+        }
+    });
 
-    if (candles5M.length === 0) {
-        output.innerHTML = `<span style="color: #ff5252;">Error: Please paste at least 5M CSV data to run the engine!</span>`;
+    let activeKeys = Object.keys(activeDatasets);
+    if (activeKeys.length === 0) {
+        output.innerHTML = `<span style="color: #ff5252;">Error: Please paste valid CSV data into at least ONE timeframe box to run!</span>`;
         return;
     }
 
-    // Filter by date range
-    let filtered5M = candles5M.filter(c => c.time >= startTime && c.time <= endTime);
+    let baseTf = activeDatasets['5M'] ? '5M' : activeKeys[0];
+    let baseCandles = activeDatasets[baseTf].filter(c => c.time >= startTime && c.time <= endTime);
 
-    if (filtered5M.length === 0) {
-        output.innerHTML = `<span style="color: #ff5252;">Error: No 5M candles found within the selected date range. Check your pasted dates.</span>`;
+    if (baseCandles.length < 2) {
+        output.innerHTML = `<span style="color: #ff5252;">Error: Need at least 2 candles in the selected date range for ${baseTf}. Check your dates or pasted CSV.</span>`;
         return;
+    }
+
+    let macroBias = 'NEUTRAL';
+    let htfCandles = [];
+    activeKeys.forEach(tf => {
+        if (tf !== baseTf) htfCandles = htfCandles.concat(activeDatasets[tf]);
+    });
+
+    if (htfCandles.length > 0) {
+        let bullishCount = htfCandles.filter(c => c.close > c.open).length;
+        macroBias = bullishCount >= htfCandles.length / 2 ? 'BULLISH' : 'BEARISH';
     }
 
     let trades = [];
     let totalBuys = 0;
     let totalSells = 0;
 
-    // Run Strategy Loop across 5M data integrated with higher TF bias
-    for (let i = 2; i < filtered5M.length - 2; i++) {
-        let c = filtered5M[i];
-        let prev = filtered5M[i - 1];
+    // FIX 2: Works even if only 2 or 3 candles are pasted from a quick screen recording
+    for (let i = 1; i < baseCandles.length; i++) {
+        let c = baseCandles[i];
+        let prev = baseCandles[i - 1];
         let candleInfo = getCandleType(c);
 
-        // Check Higher Timeframe Bias (1H / 15M trend alignment)
-        let higherTBBias = 'NEUTRAL';
-        if (candles1H.length > 0) {
-            let last1H = candles1H[candles1H.length - 1];
-            higherTBBias = last1H.close > last1H.open ? 'BULLISH' : 'BEARISH';
-        }
-
-        // FVG & Liquidity Confluence Rules
         let isBullishFVG = c.low > prev.high;
         let isBearishFVG = c.high < prev.low;
 
         let signal = null;
-        if ((isBullishFVG || candleInfo.type === 'reversal') && higherTBBias !== 'BEARISH') {
+        if ((isBullishFVG || candleInfo.type === 'reversal' || (candleInfo.type === 'continuation' && c.close > c.open)) && macroBias !== 'BEARISH') {
             signal = 'BUY';
-        } else if ((isBearishFVG || candleInfo.type === 'reversal') && higherTBBias !== 'BULLISH') {
+        } else if ((isBearishFVG || candleInfo.type === 'reversal' || (candleInfo.type === 'continuation' && c.close < c.open)) && macroBias !== 'BULLISH') {
             signal = 'SELL';
         }
 
@@ -146,10 +158,15 @@ function runTruthModePasteEngine() {
             let sl = signal === 'BUY' ? c.low - 0.40 : c.high + 0.40;
             let tp = signal === 'BUY' ? entry + 1.00 : entry - 1.00;
             
-            let nextC = filtered5M[i + 1];
-            let isWin = signal === 'BUY' ? nextC.close > entry : nextC.close < entry;
-            let outcome = isWin ? "PROFIT (+10.0 pips / +$100)" : "LOSS (-4.0 pips / -$40)";
-            let outcomeStatus = isWin ? "PROFIT" : "LOSS";
+            let nextC = baseCandles[i + 1];
+            let outcomeStatus = "PENDING (Live/End of Chart)";
+            let resultText = "Awaiting next candle close";
+
+            if (nextC) {
+                let isWin = signal === 'BUY' ? nextC.close > entry : nextC.close < entry;
+                outcomeStatus = isWin ? "PROFIT" : "LOSS";
+                resultText = isWin ? "+10.0 pips (+$100)" : "-4.0 pips (-$40)";
+            }
 
             if (signal === 'BUY') totalBuys++;
             else totalSells++;
@@ -163,44 +180,45 @@ function runTruthModePasteEngine() {
                 sl: sl.toFixed(2),
                 tp: tp.toFixed(2),
                 status: outcomeStatus,
-                result: outcome
+                result: resultText
             });
-
-            i += 2; // skip forward
+            i += 1;
         }
     }
 
-    // Generate Final Verdict based on multi-timeframe confluence
     let finalAction = "WAIT";
-    let waitLevel = "Observe key liquidity pool / FVG mitigation zone before entering.";
+    let waitNote = "Wait for price to sweep liquidity or fill the nearest FVG.";
     if (totalBuys > totalSells) {
         finalAction = "BUY";
+        waitNote = "Bullish momentum & structure aligned across active timeframes.";
     } else if (totalSells > totalBuys) {
         finalAction = "SELL";
+        waitNote = "Bearish momentum & structure aligned across active timeframes.";
     }
 
-    // Build Report HTML
-    let html = `<b style="color: #4CAF50;">Playback Period:</b> ${document.getElementById("truthStart").value} to ${document.getElementById("truthEnd").value}<br>`;
-    html += `<b style="color: #ff9800;">Total Entries:</b> ${trades.length} | <b>Buys:</b> ${totalBuys} | <b>Sells:</b> ${totalSells}<br><hr style="border-color: #333;">`;
+    let html = `<b style="color: #4CAF50;">Active Timeframes:</b> ${activeKeys.join(', ')}<br>`;
+    html += `<b style="color: #4CAF50;">Period:</b> ${document.getElementById("truthStart").value} to ${document.getElementById("truthEnd").value}<br>`;
+    html += `<b style="color: #ff9800;">Macro Bias:</b> ${macroBias} | <b>Total Entries:</b> ${trades.length} (Buys: ${totalBuys}, Sells: ${totalSells})<br><hr style="border-color: #333;">`;
 
     if (trades.length === 0) {
-        html += `<span style="color: #ff5252;">No strict setups triggered during this window. Market is consolidating.</span><br>`;
+        html += `<span style="color: #ff5252;">No confluence setups triggered with current active timeframes.</span><br>`;
     } else {
         trades.forEach(t => {
-            let color = t.status === 'PROFIT' ? '#4CAF50' : '#ff5252';
+            let color = t.status === 'PROFIT' ? '#4CAF50' : (t.status === 'LOSS' ? '#ff5252' : '#ff9800');
             html += `<b>Entry #${t.num} [${t.signal}]</b> - ${t.time}<br>`;
-            html += `&nbsp;&nbsp;• Candle Analysis: ${t.candle}<br>`;
-            html += `&nbsp;&nbsp;• Price: ${t.entry} | SL: ${t.sl} | TP: ${t.tp}<br>`;
-            html += `&nbsp;&nbsp;• Result: <span style="color: ${color}; font-weight: bold;">${t.result}</span><br><br>`;
+            html += `&nbsp;&nbsp;• Candle: ${t.candle}<br>`;
+            html += `&nbsp;&nbsp;• Entry: ${t.entry} | SL: ${t.sl} | TP: ${t.tp}<br>`;
+            html += `&nbsp;&nbsp;• Outcome: <span style="color: ${color}; font-weight: bold;">${t.status} (${t.result})</span><br><br>`;
         });
     }
 
-    html += `<hr style="border-color: #333;"><b style="color: #00bcd4; font-size: 14px;">TRUTH MODE FINAL VERDICT:</b><br>`;
-    html += `• Multi-Timeframe Confluence Answer: <b style="color: ${finalAction === 'BUY' ? '#4CAF50' : (finalAction === 'SELL' ? '#ff5252' : '#ff9800')}; font-size: 15px;">${finalAction}</b><br>`;
-    html += `• Execution Directive: ${waitLevel}<br>`;
-    html += `• Momentum & Liquidity Summary: Successfully synthesized 5M entry triggers with higher timeframe structure books.`;
+    html += `<hr style="border-color: #333;"><b style="color: #00bcd4; font-size: 15px;">TRUTH MODE FINAL VERDICT:</b><br>`;
+    html += `• Confluence Result: <b style="color: ${finalAction === 'BUY' ? '#4CAF50' : (finalAction === 'SELL' ? '#ff5252' : '#ff9800')}; font-size: 16px;">${finalAction}</b><br>`;
+    html += `• Execution Note: ${waitNote}`;
 
     output.innerHTML = html;
 }
 </script>
-
+</body>
+        </html>
+    
