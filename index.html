@@ -219,15 +219,15 @@
   </section>
 
   <script>
-    const STORAGE_KEY = 'eat_pulse_mtf_merger_v5';
+    const STORAGE_KEY = 'eat_pulse_mtf_merger_v6';
     const TIMEFRAMES = ['5M', '15M', '30M', '1H', '4H', '1D'];
-    const TF_WEIGHT = { '5M': 1, '15M': 2, '30M': 3, '1H': 4, '4H': 5, '1D': 6 };
+    const TF_MINUTES = { '5M': 5, '15M': 15, '30M': 30, '1H': 60, '4H': 240, '1D': 1440 };
 
-    let store = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    let metaStore = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    let memoryCache = {};
 
-    // IndexedDB for handling massive multi-month HistData archives without localStorage limits
-    const DB_NAME = "EAT_PULSE_DB";
-    const STORE_NAME = "candles_store";
+    const DB_NAME = 'EAT_PULSE_DB_V2';
+    const STORE_NAME = 'candles_store';
     let dbInstance = null;
 
     function initDB() {
@@ -237,7 +237,7 @@
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
           if (!db.objectStoreNames.contains(STORE_NAME)) {
-            db.createObjectStore(STORE_NAME, { keyPath: "slotKey" });
+            db.createObjectStore(STORE_NAME, { keyPath: 'slotKey' });
           }
         };
         req.onsuccess = (e) => {
@@ -248,34 +248,34 @@
       });
     }
 
-    async function saveSlotToDB(slotKeyStr, slotData) {
-      try {
-        await initDB();
-        return new Promise((resolve, reject) => {
-          const tx = dbInstance.transaction(STORE_NAME, "readwrite");
-          const store = tx.objectStore(STORE_NAME);
-          store.put({ slotKey: slotKeyStr, ...slotData });
-          tx.oncomplete = () => resolve();
-          tx.onerror = (e) => reject(e.target.error);
-        });
-      } catch (err) {
-        console.error("DB Save Error:", err);
-      }
+    async function saveSlotToDB(k, data) {
+      await initDB();
+      return new Promise((resolve, reject) => {
+        const tx = dbInstance.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put({ slotKey: k, ...data });
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e.target.error);
+      });
     }
 
-    async function loadSlotFromDB(slotKeyStr) {
-      try {
-        await initDB();
-        return new Promise((resolve) => {
-          const tx = dbInstance.transaction(STORE_NAME, "readonly");
-          const store = tx.objectStore(STORE_NAME);
-          const req = store.get(slotKeyStr);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => resolve(null);
-        });
-      } catch (err) {
-        return null;
-      }
+    async function deleteSlotFromDB(k) {
+      await initDB();
+      return new Promise((resolve, reject) => {
+        const tx = dbInstance.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(k);
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async function loadSlotFromDB(k) {
+      await initDB();
+      return new Promise((resolve) => {
+        const tx = dbInstance.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(k);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
     }
 
     const pairSelect = document.getElementById('pairSelect');
@@ -293,67 +293,122 @@
 
     function getSlot(pair = pairSelect.value, tf = tfSelect.value) {
       const k = slotKey(pair, tf);
-      if (!store[k]) {
-        store[k] = { fileRows: [], fileName: '', pastedText: '', candles: [] };
+      if (!memoryCache[k]) {
+        const m = metaStore[k] || {};
+        memoryCache[k] = {
+          fileName: m.fileName || '',
+          pastedText: m.pastedText || '',
+          candles: [],
+          loadedFromDB: false
+        };
       }
-      return store[k];
+      return memoryCache[k];
     }
 
-    function saveStoreMeta() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    function saveMeta() {
+      const cleanMeta = {};
+      Object.keys(memoryCache).forEach(k => {
+        cleanMeta[k] = {
+          fileName: memoryCache[k].fileName,
+          pastedText: memoryCache[k].pastedText
+        };
+      });
+      metaStore = cleanMeta;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(metaStore));
     }
 
-    function parseTimestampToEAT(rawTime, addHours) {
-      const s = String(rawTime || '').trim().replace(/\./g, '-').replace(/\//g, '-').replace('T', ' ');
-      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-      if (!m) return null;
-      const utcMs = Date.UTC(
-        parseInt(m[1], 10),
-        parseInt(m[2], 10) - 1,
-        parseInt(m[3], 10),
-        parseInt(m[4] || '0', 10),
-        parseInt(m[5] || '0', 10),
-        parseInt(m[6] || '0', 10)
-      );
-      if (Number.isNaN(utcMs)) return null;
-      const eatMs = utcMs + addHours * 3600 * 1000;
+    function formatEatMs(eatMs) {
       const d = new Date(eatMs);
       const pad = (n) => String(n).padStart(2, '0');
-      return {
-        ms: eatMs,
-        label: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
-      };
+      return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
     }
 
-    function parseHistDataLine(line, addHours) {
-      const parts = line.includes(";") ? line.split(";") : line.split(/[,;\t]+/);
+    // Fast parser supporting HistData (YYYYMMDD HHMMSS;O;H;L;C;V) and standard CSVs
+    function parseLineFast(line, addMs) {
+      const sep = line.indexOf(';') !== -1 ? ';' : ',';
+      const parts = line.split(sep);
       if (parts.length < 5) return null;
-      let rawDate = parts[0].trim();
-      let o, h, l, c;
 
-      // Handle HistData YYYYMMDD HHMMSS format
-      if (/^\d{8}\s+\d{4,6}$/.test(rawDate)) {
-        const year = rawDate.slice(0, 4);
-        const month = rawDate.slice(4, 6);
-        const day = rawDate.slice(6, 8);
-        const timePart = rawDate.split(/\s+/)[1];
-        const hour = timePart.slice(0, 2);
-        const min = timePart.slice(2, 4);
-        rawDate = `${year}-${month}-${day} ${hour}:${min}`;
-        o = parseFloat(parts[1]); h = parseFloat(parts[2]); l = parseFloat(parts[3]); c = parseFloat(parts[4]);
+      const raw0 = parts[0].trim();
+      if (!raw0 || raw0.charCodeAt(0) < 48 || raw0.charCodeAt(0) > 57) return null;
+
+      let utcMs, o, h, l, c;
+
+      // HistData format: "20260102 010000"
+      if (raw0.length >= 13 && raw0.charCodeAt(8) === 32) {
+        const y = parseInt(raw0.slice(0, 4), 10);
+        const mo = parseInt(raw0.slice(4, 6), 10) - 1;
+        const da = parseInt(raw0.slice(6, 8), 10);
+        const hr = parseInt(raw0.slice(9, 11), 10);
+        const mi = parseInt(raw0.slice(11, 13), 10);
+        utcMs = Date.UTC(y, mo, da, hr, mi, 0);
+        o = parseFloat(parts[1]);
+        h = parseFloat(parts[2]);
+        l = parseFloat(parts[3]);
+        c = parseFloat(parts[4]);
       } else {
-        if (parts.length >= 6 && /^\d{1,2}:\d{2}/.test(parts[1])) {
-          rawDate = `${parts[0]} ${parts[1]}`;
-          o = parseFloat(parts[2]); h = parseFloat(parts[3]); l = parseFloat(parts[4]); c = parseFloat(parts[5]);
+        let timeStr = raw0;
+        if (parts.length >= 6 && /^\d{1,2}:\d{2}/.test(parts[1].trim())) {
+          timeStr = `${raw0} ${parts[1].trim()}`;
+          o = parseFloat(parts[2]);
+          h = parseFloat(parts[3]);
+          l = parseFloat(parts[4]);
+          c = parseFloat(parts[5]);
         } else {
-          o = parseFloat(parts[1]); h = parseFloat(parts[2]); l = parseFloat(parts[3]); c = parseFloat(parts[4]);
+          o = parseFloat(parts[1]);
+          h = parseFloat(parts[2]);
+          l = parseFloat(parts[3]);
+          c = parseFloat(parts[4]);
+        }
+        const s = timeStr.replace(/\./g, '-').replace(/\//g, '-').replace('T', ' ');
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{1,2}):(\d{2}))?/);
+        if (!m) return null;
+        utcMs = Date.UTC(
+          parseInt(m[1], 10),
+          parseInt(m[2], 10) - 1,
+          parseInt(m[3], 10),
+          parseInt(m[4] || '0', 10),
+          parseInt(m[5] || '0', 10),
+          0
+        );
+      }
+
+      if (Number.isNaN(utcMs) || Number.isNaN(o) || Number.isNaN(h) || Number.isNaN(l) || Number.isNaN(c)) {
+        return null;
+      }
+
+      return { ms: utcMs + addMs, open: o, high: h, low: l, close: c };
+    }
+
+    // Aggregates 1M bars into target slot timeframe (e.g., 5M, 15M, 1H, 4H) cleanly
+    function resampleCandles(rawRows, tf) {
+      if (!rawRows.length) return [];
+      rawRows.sort((a, b) => a.ms - b.ms);
+
+      const bucketMs = (TF_MINUTES[tf] || 5) * 60 * 1000;
+      const buckets = new Map();
+
+      for (let i = 0; i < rawRows.length; i++) {
+        const r = rawRows[i];
+        const bMs = Math.floor(r.ms / bucketMs) * bucketMs;
+        let existing = buckets.get(bMs);
+        if (!existing) {
+          buckets.set(bMs, {
+            ms: bMs,
+            timeEAT: formatEatMs(bMs),
+            open: r.open,
+            high: r.high,
+            low: r.low,
+            close: r.close
+          });
+        } else {
+          if (r.high > existing.high) existing.high = r.high;
+          if (r.low < existing.low) existing.low = r.low;
+          existing.close = r.close;
         }
       }
 
-      if ([o, h, l, c].some(Number.isNaN)) return null;
-      const ts = parseTimestampToEAT(rawDate, addHours);
-      if (!ts) return null;
-      return { ms: ts.ms, timeEAT: ts.label, open: o, high: h, low: l, close: c };
+      return Array.from(buckets.values());
     }
 
     function computeIndicators(candles) {
@@ -361,8 +416,10 @@
       const k10 = 2 / 11, k20 = 2 / 21;
       let ema10 = candles[0].close, ema20 = candles[0].close;
       let af = 0.02, afStep = 0.02, afMax = 0.2, isLong = true, ep = candles[0].high, sar = candles[0].low;
+      const out = new Array(candles.length);
 
-      return candles.map((c, idx) => {
+      for (let idx = 0; idx < candles.length; idx++) {
+        const c = candles[idx];
         if (idx > 0) {
           ema10 = c.close * k10 + ema10 * (1 - k10);
           ema20 = c.close * k20 + ema20 * (1 - k20);
@@ -375,22 +432,33 @@
             else if (c.low < ep) { ep = c.low; af = Math.min(afMax, af + afStep); }
           }
         }
+
         const period = 14;
-        const start = Math.max(0, idx - period + 1);
-        const slice = candles.slice(start, idx + 1);
-        const tps = slice.map(x => (x.high + x.low + x.close) / 3);
-        const tpNow = tps[tps.length - 1];
-        const smaTp = tps.reduce((a, b) => a + b, 0) / tps.length;
-        const meanDev = tps.reduce((a, b) => a + Math.abs(b - smaTp), 0) / tps.length;
+        const start = idx >= period - 1 ? idx - period + 1 : 0;
+        const count = idx - start + 1;
+        let sumTp = 0;
+        for (let j = start; j <= idx; j++) {
+          sumTp += (candles[j].high + candles[j].low + candles[j].close) / 3;
+        }
+        const smaTp = sumTp / count;
+        let sumDev = 0;
+        for (let j = start; j <= idx; j++) {
+          const tp = (candles[j].high + candles[j].low + candles[j].close) / 3;
+          sumDev += Math.abs(tp - smaTp);
+        }
+        const meanDev = sumDev / count;
+        const tpNow = (c.high + c.low + c.close) / 3;
         const cci = meanDev === 0 ? 0 : (tpNow - smaTp) / (0.015 * meanDev);
 
-        return { ...c, ema10, ema20, sar, sarIsLong: isLong, cci };
-      });
+        out[idx] = { ...c, ema10, ema20, sar, sarIsLong: isLong, cci };
+      }
+      return out;
     }
 
     function detectReversalCandles(candles) {
       const patterns = [];
-      for (let i = 1; i < candles.length; i++) {
+      const start = Math.max(1, candles.length - 500);
+      for (let i = start; i < candles.length; i++) {
         const prev = candles[i - 1];
         const curr = candles[i];
         const body = Math.abs(curr.close - curr.open);
@@ -421,8 +489,9 @@
       }
       const fvgs = [];
       const highs = [], lows = [];
+      const start = Math.max(2, candles.length - 500);
 
-      for (let i = 2; i < candles.length; i++) {
+      for (let i = start; i < candles.length; i++) {
         const prev2 = candles[i - 2], prev1 = candles[i - 1], curr = candles[i];
         if (curr.low > prev2.high) {
           fvgs.push({ type: 'BULLISH FVG', bias: 'BULL', low: prev2.high, high: curr.low, mid: (curr.low + prev2.high) / 2, time: curr.timeEAT });
@@ -450,54 +519,4 @@
       const last = enriched[enriched.length - 1];
 
       const bullInd = last.close > last.ema10 && last.ema10 > last.ema20 && last.sarIsLong && last.cci > 0;
-      const bearInd = last.close < last.ema10 && last.ema10 < last.ema20 && !last.sarIsLong && last.cci < 0;
-
-      const lastFvg = struct.fvgs[struct.fvgs.length - 1] || null;
-      const lastRev = struct.reversals[struct.reversals.length - 1] || null;
-      const lastLiqH = struct.liquidityHighs[struct.liquidityHighs.length - 1] || null;
-      const lastLiqL = struct.liquidityLows[struct.liquidityLows.length - 1] || null;
-
-      let signal = 'WAIT';
-      if (bullInd) signal = 'BUY';
-      else if (bearInd) signal = 'SELL';
-
-      return {
-        candles,
-        enriched,
-        struct,
-        last,
-        signal,
-        lastFvg,
-        lastRev,
-        lastLiqH,
-        lastLiqL,
-        decimals,
-        slPad
-      };
-    }
-
-    function runBacktest(enriched, candles, lot, pair) {
-      const trades = [];
-      let totalProfit = 0, totalLoss = 0, wins = 0, losses = 0;
-      const decimals = pair === 'EURUSD' ? 5 : 2;
-      const slPad = pair === 'EURUSD' ? 0.0015 : 1.5;
-      const contractValue = pair === 'EURUSD' ? 100000 : 100;
-
-      for (let i = 20; i < enriched.length - 1; i++) {
-        const c = enriched[i];
-        const prev = enriched[i - 1];
-
-        const bullishCross = prev.ema10 <= prev.ema20 && c.ema10 > c.ema20 && c.sarIsLong && c.cci > 0;
-        const bearishCross = prev.ema10 >= prev.ema20 && c.ema10 < c.ema20 && !c.sarIsLong && c.cci < 0;
-
-        if (bullishCross || bearishCross) {
-          const type = bullishCross ? 'BUY' : 'SELL';
-          const entry = c.close;
-          const sl = type === 'BUY' ? +(c.low - slPad).toFixed(decimals) : +(c.high + slPad).toFixed(decimals);
-          const risk = Math.abs(entry - sl);
-          const tp = type === 'BUY' ? +(entry + risk * 2).toFixed(decimals) : +(entry - risk * 2).toFixed(decimals);
-
-          let outcome = 'OPEN';
-          let pnlDollars = 0;
-          for (let j = i + 1; j < Math.min(i + 35, candles.length); j++) {
-     
+      const bearInd = last.close < last.ema10 && last.ema10 < last.ema20
