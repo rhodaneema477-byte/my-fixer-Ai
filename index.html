@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EAT-Pulse TF Merger</title>
+  <title>EAT-Pulse Multi-TF Merger & Backtester</title>
   <style>
     :root {
       --bg: #0b1120;
@@ -41,6 +41,26 @@
       gap: 8px;
       margin-bottom: 8px;
     }
+    .tf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .tf-chip {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .tf-chip.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .tf-chip .tf-name { font-weight: 800; font-size: 0.8rem; display: block; }
+    .tf-chip .tf-sig-buy { color: var(--buy); font-weight: 700; }
+    .tf-chip .tf-sig-sell { color: var(--sell); font-weight: 700; }
+    .tf-chip .tf-sig-wait { color: var(--wait); font-weight: 700; }
+    .tf-chip .tf-sig-empty { color: var(--muted); }
     label {
       display: flex;
       flex-direction: column;
@@ -59,7 +79,7 @@
     }
     input, select, button { min-height: 44px; }
     textarea {
-      min-height: 110px;
+      min-height: 105px;
       font-family: monospace;
       font-size: 0.78rem;
       width: 100%;
@@ -72,17 +92,8 @@
       cursor: pointer;
       width: 100%;
     }
-    button.secondary {
-      background: #334155;
-      color: var(--text);
-      font-weight: 600;
-    }
-    button.ghost {
-      background: transparent;
-      border: 1px solid var(--accent);
-      color: var(--accent);
-      font-weight: 600;
-    }
+    button.secondary { background: #334155; color: var(--text); font-weight: 600; }
+    button.ghost { background: transparent; border: 1px solid var(--accent); color: var(--accent); font-weight: 600; }
     .signal-box {
       text-align: center;
       padding: 14px 10px;
@@ -91,47 +102,26 @@
       background: #070d19;
       margin-top: 8px;
     }
-    .signal-word {
-      font-size: 1.8rem;
-      font-weight: 900;
-      letter-spacing: 1px;
-      display: block;
-    }
-    .signal-reason {
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin-top: 4px;
-      display: block;
-    }
+    .signal-word { font-size: 1.85rem; font-weight: 900; letter-spacing: 1px; display: block; }
+    .signal-reason { font-size: 0.8rem; color: var(--muted); margin-top: 4px; display: block; }
     .sig-buy { border-color: var(--buy); color: var(--buy); }
     .sig-sell { border-color: var(--sell); color: var(--sell); }
     .sig-wait { border-color: var(--wait); color: var(--wait); }
-    .status {
-      font-size: 0.78rem;
-      color: var(--muted);
-      margin-top: 6px;
-      white-space: pre-line;
-    }
+    .status { font-size: 0.78rem; color: var(--muted); margin-top: 6px; white-space: pre-line; }
     .table-wrap { overflow-x: auto; margin-top: 8px; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.75rem;
-    }
-    th, td {
-      padding: 6px;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-      white-space: nowrap;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+    th, td { padding: 6px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+    .pill { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+    .pill-win { background: rgba(34,197,94,0.2); color: var(--buy); }
+    .pill-loss { background: rgba(239,68,68,0.2); color: var(--sell); }
   </style>
 </head>
 <body>
-  <h1>EAT-Pulse TF Merger</h1>
-  <div class="sub">Per-timeframe CSV + pasted screen-record rows &rarr; EAT clock &rarr; indicator check</div>
+  <h1>EAT-Pulse Multi-TF Merger</h1>
+  <div class="sub">Load 1, 2 (e.g. 4H + 5M), or all 6 timeframes &rarr; FVG + Liquidity + Reversal Candles &rarr; MTF Signal</div>
 
   <section class="card">
-    <h2>1. Select Pair &amp; Timeframe Slot</h2>
+    <h2>1. Select Pair, Lot Size &amp; Timeframe Slot</h2>
     <div class="row">
       <label>
         Pair
@@ -141,7 +131,7 @@
         </select>
       </label>
       <label>
-        Timeframe Slot
+        Editing Timeframe Slot
         <select id="tfSelect">
           <option value="5M">5M</option>
           <option value="15M">15M</option>
@@ -154,6 +144,10 @@
     </div>
     <div class="row">
       <label>
+        Lot Size (Risk)
+        <input id="lotInput" type="number" step="0.01" value="0.01" />
+      </label>
+      <label>
         CSV Source Timezone
         <select id="tzOffset">
           <option value="3">UTC / GMT &rarr; EAT (+3h)</option>
@@ -162,85 +156,90 @@
           <option value="1">UTC+2 &rarr; EAT (+1h)</option>
         </select>
       </label>
-      <label>
-        Structure / FVG / Liquidity
-        <select id="structFilter">
-          <option value="OK">Clean / Aligned</option>
-          <option value="CHOP">Choppy / Unclear</option>
-        </select>
-      </label>
     </div>
-    <div id="slotSummary" class="status">Active Slot: XAUUSD 5M (0 file rows, 0 pasted rows, 0 merged)</div>
+
+    <div class="sub" style="margin:6px 0 4px;">Tap any Timeframe Slot below to load/edit its CSV &amp; pasted candles:</div>
+    <div id="tfOverviewGrid" class="tf-grid"></div>
   </section>
 
   <section class="card">
-    <h2>2. Upload Downloaded CSV (Per Timeframe)</h2>
-    <input id="csvFileInput" type="file" accept=".csv,text/csv,text/plain" />
-    <div id="fileStatus" class="status">No downloaded CSV loaded for this slot yet.</div>
-  </section>
+    <h2 id="editorHeading">2. Load Data for XAUUSD 5M Slot</h2>
+    <div class="sub" style="margin-bottom:6px;">Upload Historical CSV File for this timeframe:</div>
+    <input id="csvFileInput" type="file" accept=".csv,text/csv,text/plain" style="margin-bottom:8px; width:100%;" />
+    <div id="fileStatus" class="status" style="margin-bottom:8px;">No CSV file uploaded for this slot yet.</div>
 
-  <section class="card">
-    <h2>3. Paste Screen-Record CSV (Copy-Paste Block)</h2>
-    <div class="sub" style="margin-bottom:6px;">Format: Time,Open,High,Low,Close (one candle per line)</div>
-    <textarea id="pasteCsvInput" placeholder="Paste CSV lines here..."></textarea>
+    <div class="sub" style="margin-bottom:6px;">Paste Screen-Record CSV Rows for this timeframe (Time,Open,High,Low,Close):</div>
+    <textarea id="pasteCsvInput" placeholder="2026-11-18 09:30,3860.15,3861.40,3859.60,3861.10"></textarea>
+
     <div class="row" style="margin-top:8px;">
-      <button type="button" id="mergeBtn">Mix CSV + Pasted &amp; Calculate</button>
-      <button type="button" class="secondary" id="clearSlotBtn">Clear Slot</button>
+      <button type="button" id="mergeBtn">Mix Slot &amp; Run MTF Analysis</button>
+      <button type="button" class="secondary" id="clearSlotBtn">Clear This Slot</button>
     </div>
-    <div style="margin-top:6px;">
-      <button type="button" class="ghost" id="loadSampleBtn">Load 25-Candle Self-Test (Verify Math)</button>
+    <div class="row" style="margin-top:6px;">
+      <button type="button" class="ghost" id="loadMtfSampleBtn">Load 4H + 5M Self-Test</button>
+      <button type="button" class="secondary" id="clearAllPairBtn">Clear All TFs (Pair)</button>
     </div>
     <div id="mergeStatus" class="status">Ready.</div>
   </section>
 
   <section class="card">
-    <h2>4. Strategy Output (10/20 EMA, PSAR, CCI)</h2>
-    <div id="signalBox" class="signal-box sig-wait">
-      <span id="signalWord" class="signal-word">WAIT</span>
-      <span id="signalReason" class="signal-reason">Load sample test or upload/paste candles to verify.</span>
+    <h2>3. Multi-Timeframe Verdict (HTF + LTF Confluence)</h2>
+    <div id="mtfSignalBox" class="signal-box sig-wait">
+      <span id="mtfSignalWord" class="signal-word">WAIT</span>
+      <span id="mtfSignalReason" class="signal-reason">Load at least 1 timeframe (or 4H + 5M) to compute MTF signal.</span>
     </div>
-    <div id="indicatorReadout" class="status">10 EMA: - | 20 EMA: - | PSAR: - | CCI: -</div>
+    <div id="mtfTpSlReadout" class="status" style="margin-top:8px; font-weight: bold; color: var(--accent);">MTF Entry: - | TP: - | SL: -</div>
+    <div id="mtfBreakdown" class="status" style="margin-top:6px;"></div>
+  </section>
 
+  <section class="card">
+    <h2 id="structHeading">4. Active Slot FVG, Liquidity &amp; Reversal Candles (5M)</h2>
+    <div id="marketStructInfo" class="status">Load candles to detect FVG, liquidity, and reversal patterns.</div>
+  </section>
+
+  <section class="card">
+    <h2 id="btHeading">5. Active Slot Past Backtest Log &amp; Profit/Loss (5M)</h2>
+    <div id="performanceSummary" class="status" style="font-weight: bold; margin-bottom: 8px;">No backtest results yet.</div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Time (EAT)</th>
-            <th>Open</th>
-            <th>High</th>
-            <th>Low</th>
-            <th>Close</th>
-            <th>10 EMA</th>
-            <th>20 EMA</th>
-            <th>PSAR</th>
-            <th>CCI</th>
+            <th>Entry Time (EAT)</th>
+            <th>Type</th>
+            <th>Entry</th>
+            <th>TP</th>
+            <th>SL</th>
+            <th>Result</th>
+            <th>P/L ($)</th>
           </tr>
         </thead>
-        <tbody id="candleBody"></tbody>
+        <tbody id="backtestBody"></tbody>
       </table>
     </div>
   </section>
 
   <script>
-    const STORAGE_KEY = 'eat_pulse_tf_merger_v2';
+    const STORAGE_KEY = 'eat_pulse_mtf_merger_v4';
+    const TIMEFRAMES = ['5M', '15M', '30M', '1H', '4H', '1D'];
+    const TF_WEIGHT = { '5M': 1, '15M': 2, '30M': 3, '1H': 4, '4H': 5, '1D': 6 };
+
     let store = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 
     const pairSelect = document.getElementById('pairSelect');
     const tfSelect = document.getElementById('tfSelect');
+    const lotInput = document.getElementById('lotInput');
     const tzOffset = document.getElementById('tzOffset');
-    const structFilter = document.getElementById('structFilter');
     const csvFileInput = document.getElementById('csvFileInput');
     const pasteCsvInput = document.getElementById('pasteCsvInput');
-    const slotSummary = document.getElementById('slotSummary');
     const fileStatus = document.getElementById('fileStatus');
     const mergeStatus = document.getElementById('mergeStatus');
 
-    function slotKey() {
-      return `${pairSelect.value}_${tfSelect.value}`;
+    function slotKey(pair = pairSelect.value, tf = tfSelect.value) {
+      return `${pair}_${tf}`;
     }
 
-    function getSlot() {
-      const k = slotKey();
+    function getSlot(pair = pairSelect.value, tf = tfSelect.value) {
+      const k = slotKey(pair, tf);
       if (!store[k]) {
         store[k] = { fileRows: [], fileName: '', pastedText: '', candles: [] };
       }
@@ -251,26 +250,26 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     }
 
-    // Pure UTC math so device clock never double-shifts EAT
     function parseTimestampToEAT(rawTime, addHours) {
       const s = String(rawTime || '').trim().replace(/\./g, '-').replace(/\//g, '-').replace('T', ' ');
       const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
       if (!m) return null;
-      const yr = parseInt(m[1], 10);
-      const mo = parseInt(m[2], 10) - 1;
-      const da = parseInt(m[3], 10);
-      const hr = parseInt(m[4] || '0', 10);
-      const mi = parseInt(m[5] || '0', 10);
-      const se = parseInt(m[6] || '0', 10);
-
-      const utcMs = Date.UTC(yr, mo, da, hr, mi, se);
+      const utcMs = Date.UTC(
+        parseInt(m[1], 10),
+        parseInt(m[2], 10) - 1,
+        parseInt(m[3], 10),
+        parseInt(m[4] || '0', 10),
+        parseInt(m[5] || '0', 10),
+        parseInt(m[6] || '0', 10)
+      );
       if (Number.isNaN(utcMs)) return null;
-
       const eatMs = utcMs + addHours * 3600 * 1000;
       const d = new Date(eatMs);
       const pad = (n) => String(n).padStart(2, '0');
-      const label = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-      return { ms: eatMs, label };
+      return {
+        ms: eatMs,
+        label: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+      };
     }
 
     function parseCSVText(text, addHours) {
@@ -280,19 +279,12 @@
         if (/^(time|date|gmt|open)/i.test(line)) continue;
         const parts = line.split(/[,;\t]+/).map(p => p.trim());
         if (parts.length < 5) continue;
-        let timeStr = parts[0];
-        let o, h, l, c;
+        let timeStr = parts[0], o, h, l, c;
         if (parts.length >= 6 && /^\d{1,2}:\d{2}/.test(parts[1])) {
           timeStr = `${parts[0]} ${parts[1]}`;
-          o = parseFloat(parts[2]);
-          h = parseFloat(parts[3]);
-          l = parseFloat(parts[4]);
-          c = parseFloat(parts[5]);
+          o = parseFloat(parts[2]); h = parseFloat(parts[3]); l = parseFloat(parts[4]); c = parseFloat(parts[5]);
         } else {
-          o = parseFloat(parts[1]);
-          h = parseFloat(parts[2]);
-          l = parseFloat(parts[3]);
-          c = parseFloat(parts[4]);
+          o = parseFloat(parts[1]); h = parseFloat(parts[2]); l = parseFloat(parts[3]); c = parseFloat(parts[4]);
         }
         if ([o, h, l, c].some(Number.isNaN)) continue;
         const ts = parseTimestampToEAT(timeStr, addHours);
@@ -304,51 +296,23 @@
 
     function computeIndicators(candles) {
       if (!candles.length) return [];
-      const k10 = 2 / 11;
-      const k20 = 2 / 21;
-      let ema10 = candles[0].close;
-      let ema20 = candles[0].close;
-
-      let af = 0.02;
-      const afStep = 0.02;
-      const afMax = 0.2;
-      let isLong = true;
-      let ep = candles[0].high;
-      let sar = candles[0].low;
+      const k10 = 2 / 11, k20 = 2 / 21;
+      let ema10 = candles[0].close, ema20 = candles[0].close;
+      let af = 0.02, afStep = 0.02, afMax = 0.2, isLong = true, ep = candles[0].high, sar = candles[0].low;
 
       return candles.map((c, idx) => {
         if (idx > 0) {
           ema10 = c.close * k10 + ema10 * (1 - k10);
           ema20 = c.close * k20 + ema20 * (1 - k20);
-
           sar = sar + af * (ep - sar);
           if (isLong) {
-            if (c.low < sar) {
-              isLong = false;
-              sar = ep;
-              ep = c.low;
-              af = afStep;
-            } else {
-              if (c.high > ep) {
-                ep = c.high;
-                af = Math.min(afMax, af + afStep);
-              }
-            }
+            if (c.low < sar) { isLong = false; sar = ep; ep = c.low; af = afStep; }
+            else if (c.high > ep) { ep = c.high; af = Math.min(afMax, af + afStep); }
           } else {
-            if (c.high > sar) {
-              isLong = true;
-              sar = ep;
-              ep = c.high;
-              af = afStep;
-            } else {
-              if (c.low < ep) {
-                ep = c.low;
-                af = Math.min(afMax, af + afStep);
-              }
-            }
+            if (c.high > sar) { isLong = true; sar = ep; ep = c.high; af = afStep; }
+            else if (c.low < ep) { ep = c.low; af = Math.min(afMax, af + afStep); }
           }
         }
-
         const period = 14;
         const start = Math.max(0, idx - period + 1);
         const slice = candles.slice(start, idx + 1);
@@ -362,105 +326,367 @@
       });
     }
 
-    function renderSlot() {
-      const slot = getSlot();
-      pasteCsvInput.value = slot.pastedText || '';
-      fileStatus.textContent = slot.fileName
-        ? `Loaded file: ${slot.fileName} (${slot.fileRows.length} rows)`
-        : 'No downloaded CSV loaded for this slot yet.';
+    function detectReversalCandles(candles) {
+      const patterns = [];
+      for (let i = 1; i < candles.length; i++) {
+        const prev = candles[i - 1];
+        const curr = candles[i];
+        const body = Math.abs(curr.close - curr.open);
+        const range = Math.max(0.00001, curr.high - curr.low);
+        const upperWick = curr.high - Math.max(curr.open, curr.close);
+        const lowerWick = Math.min(curr.open, curr.close) - curr.low;
+        const prevBear = prev.close < prev.open;
+        const prevBull = prev.close > prev.open;
+        const currBull = curr.close > curr.open;
+        const currBear = curr.close < curr.open;
 
-      slotSummary.textContent =
-        `Active Slot: ${pairSelect.value} ${tfSelect.value} (${slot.fileRows.length} file, ${slot.candles.length} merged)`;
+        if (prevBear && currBull && curr.close >= prev.open && curr.open <= prev.close) {
+          patterns.push({ name: 'Bullish Engulfing', bias: 'BULL', price: curr.close, time: curr.timeEAT });
+        } else if (prevBull && currBear && curr.open >= prev.close && curr.close <= prev.open) {
+          patterns.push({ name: 'Bearish Engulfing', bias: 'BEAR', price: curr.close, time: curr.timeEAT });
+        } else if (lowerWick >= body * 2 && upperWick <= body * 0.5 && range > 0) {
+          patterns.push({ name: 'Bullish Hammer / Pin Bar', bias: 'BULL', price: curr.close, time: curr.timeEAT });
+        } else if (upperWick >= body * 2 && lowerWick <= body * 0.5 && range > 0) {
+          patterns.push({ name: 'Bearish Shooting Star', bias: 'BEAR', price: curr.close, time: curr.timeEAT });
+        }
+      }
+      return patterns;
+    }
 
-      const enriched = computeIndicators(slot.candles);
-      const tbody = document.getElementById('candleBody');
-      tbody.innerHTML = '';
+    function detectStructure(candles) {
+      if (candles.length < 3) {
+        return { fvgs: [], liquidityHighs: [], liquidityLows: [], reversals: [] };
+      }
+      const fvgs = [];
+      const highs = [], lows = [];
 
-      enriched.slice(-25).reverse().forEach(r => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${r.timeEAT}</td>
-          <td>${r.open.toFixed(2)}</td>
-          <td>${r.high.toFixed(2)}</td>
-          <td>${r.low.toFixed(2)}</td>
-          <td>${r.close.toFixed(2)}</td>
-          <td>${r.ema10.toFixed(2)}</td>
-          <td>${r.ema20.toFixed(2)}</td>
-          <td>${r.sar.toFixed(2)} (${r.sarIsLong ? 'B' : 'S'})</td>
-          <td>${r.cci.toFixed(1)}</td>
-        `;
-        tbody.appendChild(tr);
+      for (let i = 2; i < candles.length; i++) {
+        const prev2 = candles[i - 2], prev1 = candles[i - 1], curr = candles[i];
+        if (curr.low > prev2.high) {
+          fvgs.push({ type: 'BULLISH FVG', bias: 'BULL', low: prev2.high, high: curr.low, mid: (curr.low + prev2.high) / 2, time: curr.timeEAT });
+        }
+        if (curr.high < prev2.low) {
+          fvgs.push({ type: 'BEARISH FVG', bias: 'BEAR', low: curr.high, high: prev2.low, mid: (curr.high + prev2.low) / 2, time: curr.timeEAT });
+        }
+        if (prev1.high > prev2.high && prev1.high > curr.high) {
+          highs.push({ level: prev1.high, time: prev1.timeEAT });
+        }
+        if (prev1.low < prev2.low && prev1.low < curr.low) {
+          lows.push({ level: prev1.low, time: prev1.timeEAT });
+        }
+      }
+      const reversals = detectReversalCandles(candles);
+      return { fvgs, liquidityHighs: highs, liquidityLows: lows, reversals };
+    }
+
+    function analyzeTimeframe(candles, pair) {
+      if (!candles.length) return null;
+      const decimals = pair === 'EURUSD' ? 5 : 2;
+      const slPad = pair === 'EURUSD' ? 0.0015 : 1.5;
+      const enriched = computeIndicators(candles);
+      const struct = detectStructure(candles);
+      const last = enriched[enriched.length - 1];
+
+      const bullInd = last.close > last.ema10 && last.ema10 > last.ema20 && last.sarIsLong && last.cci > 0;
+      const bearInd = last.close < last.ema10 && last.ema10 < last.ema20 && !last.sarIsLong && last.cci < 0;
+
+      const lastFvg = struct.fvgs[struct.fvgs.length - 1] || null;
+      const lastRev = struct.reversals[struct.reversals.length - 1] || null;
+      const lastLiqH = struct.liquidityHighs[struct.liquidityHighs.length - 1] || null;
+      const lastLiqL = struct.liquidityLows[struct.liquidityLows.length - 1] || null;
+
+      let signal = 'WAIT';
+      if (bullInd) signal = 'BUY';
+      else if (bearInd) signal = 'SELL';
+
+      return {
+        candles,
+        enriched,
+        struct,
+        last,
+        signal,
+        lastFvg,
+        lastRev,
+        lastLiqH,
+        lastLiqL,
+        decimals,
+        slPad
+      };
+    }
+
+    function runBacktest(enriched, candles, lot, pair) {
+      const trades = [];
+      let totalProfit = 0, totalLoss = 0, wins = 0, losses = 0;
+      const decimals = pair === 'EURUSD' ? 5 : 2;
+      const slPad = pair === 'EURUSD' ? 0.0015 : 1.5;
+      const contractValue = pair === 'EURUSD' ? 100000 : 100;
+
+      for (let i = 20; i < enriched.length - 1; i++) {
+        const c = enriched[i];
+        const prev = enriched[i - 1];
+
+        const bullishCross = prev.ema10 <= prev.ema20 && c.ema10 > c.ema20 && c.sarIsLong && c.cci > 0;
+        const bearishCross = prev.ema10 >= prev.ema20 && c.ema10 < c.ema20 && !c.sarIsLong && c.cci < 0;
+
+        if (bullishCross || bearishCross) {
+          const type = bullishCross ? 'BUY' : 'SELL';
+          const entry = c.close;
+          const sl = type === 'BUY' ? +(c.low - slPad).toFixed(decimals) : +(c.high + slPad).toFixed(decimals);
+          const risk = Math.abs(entry - sl);
+          const tp = type === 'BUY' ? +(entry + risk * 2).toFixed(decimals) : +(entry - risk * 2).toFixed(decimals);
+
+          let outcome = 'OPEN';
+          let pnlDollars = 0;
+          for (let j = i + 1; j < Math.min(i + 35, candles.length); j++) {
+            const future = candles[j];
+            if (type === 'BUY') {
+              if (future.low <= sl) { outcome = 'LOSS'; break; }
+              if (future.high >= tp) { outcome = 'WIN'; break; }
+            } else {
+              if (future.high >= sl) { outcome = 'LOSS'; break; }
+              if (future.low <= tp) { outcome = 'WIN'; break; }
+            }
+          }
+
+          if (outcome === 'WIN') {
+            wins++;
+            pnlDollars = +(risk * 2 * lot * contractValue).toFixed(2);
+            totalProfit += pnlDollars;
+          } else if (outcome === 'LOSS') {
+            losses++;
+            pnlDollars = +(-risk * lot * contractValue).toFixed(2);
+            totalLoss += Math.abs(pnlDollars);
+          }
+
+          trades.push({
+            time: c.timeEAT,
+            type,
+            entry: entry.toFixed(decimals),
+            tp: tp.toFixed(decimals),
+            sl: sl.toFixed(decimals),
+            outcome,
+            pnl: pnlDollars
+          });
+        }
+      }
+      return { trades, wins, losses, totalProfit, totalLoss };
+    }
+
+    function renderAll() {
+      const pair = pairSelect.value;
+      const activeTf = tfSelect.value;
+      const lot = parseFloat(lotInput.value || '0.01');
+      const decimals = pair === 'EURUSD' ? 5 : 2;
+
+      // Analyze all timeframes for selected pair
+      const analyses = {};
+      TIMEFRAMES.forEach(tf => {
+        const s = getSlot(pair, tf);
+        analyses[tf] = analyzeTimeframe(s.candles, pair);
       });
 
-      const signalBox = document.getElementById('signalBox');
-      const signalWord = document.getElementById('signalWord');
-      const signalReason = document.getElementById('signalReason');
-      const readout = document.getElementById('indicatorReadout');
+      // Render 6-slot selector chips
+      const grid = document.getElementById('tfOverviewGrid');
+      grid.innerHTML = '';
+      TIMEFRAMES.forEach(tf => {
+        const s = getSlot(pair, tf);
+        const a = analyses[tf];
+        const chip = document.createElement('div');
+        chip.className = 'tf-chip' + (tf === activeTf ? ' active' : '');
+        let sigHtml = '<span class="tf-sig-empty">EMPTY</span>';
+        if (a) {
+          const cls = a.signal === 'BUY' ? 'tf-sig-buy' : a.signal === 'SELL' ? 'tf-sig-sell' : 'tf-sig-wait';
+          sigHtml = `<span class="${cls}">${a.signal} (${s.candles.length})</span>`;
+        }
+        chip.innerHTML = `<span class="tf-name">${tf}</span>${sigHtml}`;
+        chip.addEventListener('click', () => {
+          tfSelect.value = tf;
+          csvFileInput.value = '';
+          renderAll();
+        });
+        grid.appendChild(chip);
+      });
 
-      if (!enriched.length) {
-        signalBox.className = 'signal-box sig-wait';
-        signalWord.textContent = 'WAIT';
-        signalReason.textContent = 'No merged candles in this slot yet.';
-        readout.textContent = '10 EMA: - | 20 EMA: - | PSAR: - | CCI: -';
+      // Populate active slot editor
+      const activeSlot = getSlot(pair, activeTf);
+      document.getElementById('editorHeading').textContent = `2. Load Data for ${pair} ${activeTf} Slot`;
+      document.getElementById('structHeading').textContent = `4. Active Slot FVG, Liquidity & Reversal Candles (${activeTf})`;
+      document.getElementById('btHeading').textContent = `5. Active Slot Past Backtest Log & Profit/Loss (${activeTf})`;
+      pasteCsvInput.value = activeSlot.pastedText || '';
+      fileStatus.textContent = activeSlot.fileName
+        ? `Uploaded file: ${activeSlot.fileName} (${activeSlot.fileRows.length} rows)`
+        : `No CSV file uploaded for ${pair} ${activeTf} yet.`;
+
+      // Render Active Slot Structure (FVG, Liquidity, Reversal Candles)
+      const activeAnalysis = analyses[activeTf];
+      const structInfo = document.getElementById('marketStructInfo');
+      if (!activeAnalysis) {
+        structInfo.textContent = `No candles loaded in ${pair} ${activeTf} slot yet.`;
+      } else {
+        const fvgTxt = activeAnalysis.lastFvg
+          ? `${activeAnalysis.lastFvg.type} (${activeAnalysis.lastFvg.low.toFixed(decimals)} - ${activeAnalysis.lastFvg.high.toFixed(decimals)}) at ${activeAnalysis.lastFvg.time}`
+          : 'None detected';
+        const revTxt = activeAnalysis.lastRev
+          ? `${activeAnalysis.lastRev.name} (${activeAnalysis.lastRev.bias}) at ${activeAnalysis.lastRev.price.toFixed(decimals)} (${activeAnalysis.lastRev.time})`
+          : 'None detected';
+        const liqHTxt = activeAnalysis.lastLiqH ? `${activeAnalysis.lastLiqH.level.toFixed(decimals)} (${activeAnalysis.lastLiqH.time})` : 'None';
+        const liqLTxt = activeAnalysis.lastLiqL ? `${activeAnalysis.lastLiqL.level.toFixed(decimals)} (${activeAnalysis.lastLiqL.time})` : 'None';
+
+        structInfo.innerHTML =
+          `<b>Latest FVG:</b> ${fvgTxt}<br/>` +
+          `<b>Major Reversal Candle:</b> ${revTxt}<br/>` +
+          `<b>Buy-Side Liquidity (Swing High):</b> ${liqHTxt}<br/>` +
+          `<b>Sell-Side Liquidity (Swing Low):</b> ${liqLTxt}`;
+      }
+
+      // Multi-Timeframe Confluence Calculation across all loaded slots
+      const loadedTfs = TIMEFRAMES.filter(tf => analyses[tf] !== null);
+      const mtfBox = document.getElementById('mtfSignalBox');
+      const mtfWord = document.getElementById('mtfSignalWord');
+      const mtfReason = document.getElementById('mtfSignalReason');
+      const mtfTpSl = document.getElementById('mtfTpSlReadout');
+      const mtfBreakdown = document.getElementById('mtfBreakdown');
+
+      if (!loadedTfs.length) {
+        mtfBox.className = 'signal-box sig-wait';
+        mtfWord.textContent = 'WAIT';
+        mtfReason.textContent = 'Load at least 1 timeframe (or 4H + 5M) to compute MTF signal.';
+        mtfTpSl.textContent = 'MTF Entry: - | TP: - | SL: -';
+        mtfBreakdown.textContent = '';
+      } else {
+        // Sort loaded timeframes from highest (e.g. 4H) to lowest (e.g. 5M)
+        const sortedDesc = [...loadedTfs].sort((a, b) => TF_WEIGHT[b] - TF_WEIGHT[a]);
+        const htf = sortedDesc[0];
+        const ltf = sortedDesc[sortedDesc.length - 1];
+        const htfA = analyses[htf];
+        const ltfA = analyses[ltf];
+
+        const htfBias = htfA.signal !== 'WAIT'
+          ? htfA.signal
+          : (htfA.last.ema10 > htfA.last.ema20 ? 'BUY' : htfA.last.ema10 < htfA.last.ema20 ? 'SELL' : 'WAIT');
+
+        const ltfConfluenceBull =
+          ltfA.signal === 'BUY' ||
+          (ltfA.last.ema10 > ltfA.last.ema20 && (ltfA.lastFvg?.bias === 'BULL' || ltfA.lastRev?.bias === 'BULL'));
+        const ltfConfluenceBear =
+          ltfA.signal === 'SELL' ||
+          (ltfA.last.ema10 < ltfA.last.ema20 && (ltfA.lastFvg?.bias === 'BEAR' || ltfA.lastRev?.bias === 'BEAR'));
+
+        let finalSig = 'WAIT';
+        let reason = '';
+
+        if (loadedTfs.length === 1) {
+          finalSig = ltfA.signal;
+          reason = `Single-TF mode (${ltf}): ${ltfA.signal} based on EMA, PSAR, CCI, FVG & reversal structure.`;
+        } else if (htfBias === 'BUY' && ltfConfluenceBull) {
+          finalSig = 'BUY';
+          reason = `MTF Aligned (${htf} Bullish Bias + ${ltf} Bullish Entry/FVG/Reversal).`;
+        } else if (htfBias === 'SELL' && ltfConfluenceBear) {
+          finalSig = 'SELL';
+          reason = `MTF Aligned (${htf} Bearish Bias + ${ltf} Bearish Entry/FVG/Reversal).`;
+        } else {
+          finalSig = 'WAIT';
+          reason = `MTF Conflict: ${htf} bias is ${htfBias}, while ${ltf} is ${ltfA.signal}. Wait for alignment.`;
+        }
+
+        const entry = ltfA.last.close;
+        let sl = 0, tp = 0;
+        if (finalSig === 'BUY') {
+          const swingSL = ltfA.lastLiqL ? Math.min(ltfA.last.low, ltfA.lastLiqL.level) : ltfA.last.low;
+          sl = +(swingSL - ltfA.slPad).toFixed(decimals);
+          const risk = Math.max(ltfA.slPad, entry - sl);
+          tp = ltfA.lastLiqH && ltfA.lastLiqH.level > entry + risk
+            ? +ltfA.lastLiqH.level.toFixed(decimals)
+            : +(entry + risk * 2).toFixed(decimals);
+          mtfBox.className = 'signal-box sig-buy';
+        } else if (finalSig === 'SELL') {
+          const swingSL = ltfA.lastLiqH ? Math.max(ltfA.last.high, ltfA.lastLiqH.level) : ltfA.last.high;
+          sl = +(swingSL + ltfA.slPad).toFixed(decimals);
+          const risk = Math.max(ltfA.slPad, sl - entry);
+          tp = ltfA.lastLiqL && ltfA.lastLiqL.level < entry - risk
+            ? +ltfA.lastLiqL.level.toFixed(decimals)
+            : +(entry - risk * 2).toFixed(decimals);
+          mtfBox.className = 'signal-box sig-sell';
+        } else {
+          mtfBox.className = 'signal-box sig-wait';
+        }
+
+        mtfWord.textContent = finalSig;
+        mtfReason.textContent = reason;
+        mtfTpSl.textContent = finalSig === 'WAIT'
+          ? `Current ${ltf} Price (${ltfA.last.timeEAT} EAT): ${entry.toFixed(decimals)} | No active entry (WAIT)`
+          : `MTF Entry (${ltf} @ ${ltfA.last.timeEAT} EAT): ${entry.toFixed(decimals)} | TP: ${tp.toFixed(decimals)} | SL: ${sl.toFixed(decimals)}`;
+
+        mtfBreakdown.textContent = sortedDesc.map(tf => {
+          const a = analyses[tf];
+          const fvg = a.lastFvg ? a.lastFvg.type : 'No FVG';
+          const rev = a.lastRev ? a.lastRev.name : 'No Reversal';
+          return `• ${tf}: ${a.signal} | ${fvg} | ${rev}`;
+        }).join('\n');
+      }
+
+      // Render Active Slot Backtest
+      const perf = document.getElementById('performanceSummary');
+      const tbody = document.getElementById('backtestBody');
+      tbody.innerHTML = '';
+
+      if (!activeAnalysis || activeAnalysis.candles.length < 22) {
+        perf.textContent = `Need at least 22 candles in ${pair} ${activeTf} to run historical backtest.`;
         return;
       }
 
-      const last = enriched[enriched.length - 1];
-      // Compare price to EMA/PSAR, and CCI momentum direction (> 0 bullish, < 0 bearish)
-      const priceAboveInd = last.close > last.ema10 && last.ema10 > last.ema20 && last.sarIsLong;
-      const priceBelowInd = last.close < last.ema10 && last.ema10 < last.ema20 && !last.sarIsLong;
-      const cciBull = last.cci > 0;
-      const cciBear = last.cci < 0;
+      const bt = runBacktest(activeAnalysis.enriched, activeAnalysis.candles, lot, pair);
+      const startTime = activeAnalysis.candles[0].timeEAT;
+      const endTime = activeAnalysis.candles[activeAnalysis.candles.length - 1].timeEAT;
+      const net = (bt.totalProfit - bt.totalLoss).toFixed(2);
 
-      readout.textContent =
-        `Latest (${last.timeEAT} EAT) -> 10 EMA: ${last.ema10.toFixed(2)} | 20 EMA: ${last.ema20.toFixed(2)} | PSAR: ${last.sar.toFixed(2)} | CCI: ${last.cci.toFixed(1)}`;
+      perf.innerHTML =
+        `From ${startTime} to ${endTime} EAT (${activeTf}): ${bt.trades.length} Entries | ` +
+        `Wins: ${bt.wins} (+$${bt.totalProfit.toFixed(2)}) | Losses: ${bt.losses} (-$${bt.totalLoss.toFixed(2)}) | ` +
+        `Net: <span style="color:${net >= 0 ? 'var(--buy)' : 'var(--sell)'}">$${net}</span>`;
 
-      if (structFilter.value === 'CHOP') {
-        signalBox.className = 'signal-box sig-wait';
-        signalWord.textContent = 'WAIT';
-        signalReason.textContent = 'Structure marked choppy/unclear.';
-      } else if (priceAboveInd && cciBull) {
-        signalBox.className = 'signal-box sig-buy';
-        signalWord.textContent = 'BUY';
-        signalReason.textContent = '10 EMA > 20 EMA, PSAR below price, and CCI > 0.';
-      } else if (priceBelowInd && cciBear) {
-        signalBox.className = 'signal-box sig-sell';
-        signalWord.textContent = 'SELL';
-        signalReason.textContent = '10 EMA < 20 EMA, PSAR above price, and CCI < 0.';
-      } else {
-        signalBox.className = 'signal-box sig-wait';
-        signalWord.textContent = 'WAIT';
-        signalReason.textContent = 'Indicators not aligned on latest merged candle.';
-      }
+      bt.trades.slice(-25).reverse().forEach(t => {
+        const tr = document.createElement('tr');
+        const badge = t.outcome === 'WIN'
+          ? '<span class="pill pill-win">PROFIT</span>'
+          : t.outcome === 'LOSS'
+            ? '<span class="pill pill-loss">LOSS</span>'
+            : '<span class="pill">OPEN</span>';
+        tr.innerHTML = `
+          <td>${t.time}</td>
+          <td><b>${t.type}</b></td>
+          <td>${t.entry}</td>
+          <td>${t.tp}</td>
+          <td>${t.sl}</td>
+          <td>${badge}</td>
+          <td style="color:${t.pnl >= 0 ? 'var(--buy)' : 'var(--sell)'}">$${t.pnl.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     csvFileInput.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       const text = await file.text();
-      const addHours = parseFloat(tzOffset.value || '3');
       const slot = getSlot();
       slot.fileName = file.name;
-      slot.fileRows = parseCSVText(text, addHours);
+      slot.fileRows = parseCSVText(text, parseFloat(tzOffset.value || '3'));
       saveStore();
-      renderSlot();
-      mergeStatus.textContent = `Loaded ${slot.fileRows.length} file rows. Tap Mix CSV + Pasted & Calculate to merge.`;
+      renderAll();
+      mergeStatus.textContent = `Loaded ${slot.fileRows.length} file rows into ${pairSelect.value} ${tfSelect.value}. Tap Mix Slot to run.`;
     });
 
     document.getElementById('mergeBtn').addEventListener('click', () => {
       const slot = getSlot();
-      const addHours = parseFloat(tzOffset.value || '3');
       slot.pastedText = pasteCsvInput.value;
-      const pastedRows = parseCSVText(slot.pastedText, addHours);
-
+      const pastedRows = parseCSVText(slot.pastedText, parseFloat(tzOffset.value || '3'));
       const map = new Map();
       [...slot.fileRows, ...pastedRows].forEach(r => map.set(r.ms, r));
       slot.candles = Array.from(map.values()).sort((a, b) => a.ms - b.ms);
       saveStore();
-
-      mergeStatus.textContent =
-        `Merged ${pairSelect.value} ${tfSelect.value}: ${slot.fileRows.length} file + ${pastedRows.length} pasted -> ${slot.candles.length} unique EAT candles.`;
-      renderSlot();
+      mergeStatus.textContent = `Merged ${slot.candles.length} unique EAT candles in ${pairSelect.value} ${tfSelect.value}. MTF updated.`;
+      renderAll();
     });
 
     document.getElementById('clearSlotBtn').addEventListener('click', () => {
@@ -468,38 +694,73 @@
       csvFileInput.value = '';
       pasteCsvInput.value = '';
       saveStore();
-      renderSlot();
+      renderAll();
       mergeStatus.textContent = `Cleared ${slotKey()}.`;
     });
 
-    document.getElementById('loadSampleBtn').addEventListener('click', () => {
-      const slot = getSlot();
-      const sample = [];
-      let price = 2600.0;
-      for (let i = 0; i < 25; i++) {
-        const min = i * 5;
-        const hh = String(14 + Math.floor(min / 60)).padStart(2, '0');
-        const mm = String(min % 60).padStart(2, '0');
-        const o = price;
-        const c = +(price + 1.4).toFixed(2);
-        const h = +(Math.max(o, c) + 0.8).toFixed(2);
-        const l = +(Math.min(o, c) - 0.6).toFixed(2);
-        sample.push(`2026-11-17 ${hh}:${mm},${o.toFixed(2)},${h.toFixed(2)},${l.toFixed(2)},${c.toFixed(2)}`);
-        price = c;
+    document.getElementById('clearAllPairBtn').addEventListener('click', () => {
+      const pair = pairSelect.value;
+      TIMEFRAMES.forEach(tf => delete store[slotKey(pair, tf)]);
+      csvFileInput.value = '';
+      pasteCsvInput.value = '';
+      saveStore();
+      renderAll();
+      mergeStatus.textContent = `Cleared all timeframe slots for ${pair}.`;
+    });
+
+    document.getElementById('loadMtfSampleBtn').addEventListener('click', () => {
+      const pair = pairSelect.value;
+      // Populate 4H bullish trend + 5M bullish FVG/Engulfing alignment
+      const slot4H = getSlot(pair, '4H');
+      const rows4H = [];
+      let p4 = pair === 'EURUSD' ? 1.0800 : 3820.0;
+      const step4 = pair === 'EURUSD' ? 0.0012 : 3.5;
+      for (let i = 0; i < 30; i++) {
+        const day = 10 + Math.floor((i * 4) / 24);
+        const hr = String((i * 4) % 24).padStart(2, '0');
+        const o = p4;
+        const c = +(p4 + (i % 4 === 0 ? -step4 * 0.4 : step4)).toFixed(pair === 'EURUSD' ? 5 : 2);
+        const h = +(Math.max(o, c) + step4 * 0.4).toFixed(pair === 'EURUSD' ? 5 : 2);
+        const l = +(Math.min(o, c) - step4 * 0.3).toFixed(pair === 'EURUSD' ? 5 : 2);
+        rows4H.push(`2026-11-${String(day).padStart(2, '0')} ${hr}:00,${o},${h},${l},${c}`);
+        p4 = c;
       }
-      slot.pastedText = sample.join('\n');
-      pasteCsvInput.value = slot.pastedText;
-      document.getElementById('mergeBtn').click();
+      slot4H.pastedText = rows4H.join('\n');
+      slot4H.candles = parseCSVText(slot4H.pastedText, 3);
+
+      const slot5M = getSlot(pair, '5M');
+      const rows5M = [];
+      let p5 = p4 - (pair === 'EURUSD' ? 0.0020 : 6.0);
+      const step5 = pair === 'EURUSD' ? 0.0003 : 1.1;
+      for (let i = 0; i < 35; i++) {
+        const min = i * 5;
+        const hr = String(7 + Math.floor(min / 60)).padStart(2, '0');
+        const mm = String(min % 60).padStart(2, '0');
+        const o = p5;
+        const c = +(p5 + (i % 3 === 0 ? -step5 * 0.5 : step5)).toFixed(pair === 'EURUSD' ? 5 : 2);
+        const h = +(Math.max(o, c) + step5 * 0.45).toFixed(pair === 'EURUSD' ? 5 : 2);
+        const l = +(Math.min(o, c) - step5 * 0.35).toFixed(pair === 'EURUSD' ? 5 : 2);
+        rows5M.push(`2026-11-18 ${hr}:${mm},${o},${h},${l},${c}`);
+        p5 = c;
+      }
+      slot5M.pastedText = rows5M.join('\n');
+      slot5M.candles = parseCSVText(slot5M.pastedText, 3);
+
+      tfSelect.value = '5M';
+      saveStore();
+      renderAll();
+      mergeStatus.textContent = `Loaded 4H + 5M self-test for ${pair}. Both slots active in MTF engine.`;
     });
 
     [pairSelect, tfSelect].forEach(el => el.addEventListener('change', () => {
       csvFileInput.value = '';
-      renderSlot();
+      renderAll();
     }));
 
-    [tzOffset, structFilter].forEach(el => el.addEventListener('change', renderSlot));
+    lotInput.addEventListener('input', renderAll);
+    tzOffset.addEventListener('change', renderAll);
 
-    renderSlot();
+    renderAll();
   </script>
 </body>
 </html>
