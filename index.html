@@ -164,8 +164,8 @@
 
   <section class="card">
     <h2 id="editorHeading">2. Load Data for XAUUSD 5M Slot</h2>
-    <div class="sub" style="margin-bottom:6px;">Upload Historical CSV File for this timeframe:</div>
-    <input id="csvFileInput" type="file" accept=".csv,text/csv,text/plain" style="margin-bottom:8px; width:100%;" />
+    <div class="sub" style="margin-bottom:6px;">Upload Historical CSV File (Multi-select HistData CSVs allowed):</div>
+    <input id="csvFileInput" type="file" multiple accept=".csv,text/csv,text/plain" style="margin-bottom:8px; width:100%;" />
     <div id="fileStatus" class="status" style="margin-bottom:8px;">No CSV file uploaded for this slot yet.</div>
 
     <div class="sub" style="margin-bottom:6px;">Paste Screen-Record CSV Rows for this timeframe (Time,Open,High,Low,Close):</div>
@@ -179,7 +179,7 @@
       <button type="button" class="ghost" id="loadMtfSampleBtn">Load 4H + 5M Self-Test</button>
       <button type="button" class="secondary" id="clearAllPairBtn">Clear All TFs (Pair)</button>
     </div>
-    <div id="mergeStatus" class="status">Ready.</div>
+    <div id="mergeStatus" class="status">Ready. Persistent DB storage active.</div>
   </section>
 
   <section class="card">
@@ -219,11 +219,64 @@
   </section>
 
   <script>
-    const STORAGE_KEY = 'eat_pulse_mtf_merger_v4';
+    const STORAGE_KEY = 'eat_pulse_mtf_merger_v5';
     const TIMEFRAMES = ['5M', '15M', '30M', '1H', '4H', '1D'];
     const TF_WEIGHT = { '5M': 1, '15M': 2, '30M': 3, '1H': 4, '4H': 5, '1D': 6 };
 
     let store = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+
+    // IndexedDB for handling massive multi-month HistData archives without localStorage limits
+    const DB_NAME = "EAT_PULSE_DB";
+    const STORE_NAME = "candles_store";
+    let dbInstance = null;
+
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        if (dbInstance) return resolve(dbInstance);
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: "slotKey" });
+          }
+        };
+        req.onsuccess = (e) => {
+          dbInstance = e.target.result;
+          resolve(dbInstance);
+        };
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async function saveSlotToDB(slotKeyStr, slotData) {
+      try {
+        await initDB();
+        return new Promise((resolve, reject) => {
+          const tx = dbInstance.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          store.put({ slotKey: slotKeyStr, ...slotData });
+          tx.oncomplete = () => resolve();
+          tx.onerror = (e) => reject(e.target.error);
+        });
+      } catch (err) {
+        console.error("DB Save Error:", err);
+      }
+    }
+
+    async function loadSlotFromDB(slotKeyStr) {
+      try {
+        await initDB();
+        return new Promise((resolve) => {
+          const tx = dbInstance.transaction(STORE_NAME, "readonly");
+          const store = tx.objectStore(STORE_NAME);
+          const req = store.get(slotKeyStr);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+      } catch (err) {
+        return null;
+      }
+    }
 
     const pairSelect = document.getElementById('pairSelect');
     const tfSelect = document.getElementById('tfSelect');
@@ -246,7 +299,7 @@
       return store[k];
     }
 
-    function saveStore() {
+    function saveStoreMeta() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     }
 
@@ -272,26 +325,35 @@
       };
     }
 
-    function parseCSVText(text, addHours) {
-      const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const rows = [];
-      for (const line of lines) {
-        if (/^(time|date|gmt|open)/i.test(line)) continue;
-        const parts = line.split(/[,;\t]+/).map(p => p.trim());
-        if (parts.length < 5) continue;
-        let timeStr = parts[0], o, h, l, c;
+    function parseHistDataLine(line, addHours) {
+      const parts = line.includes(";") ? line.split(";") : line.split(/[,;\t]+/);
+      if (parts.length < 5) return null;
+      let rawDate = parts[0].trim();
+      let o, h, l, c;
+
+      // Handle HistData YYYYMMDD HHMMSS format
+      if (/^\d{8}\s+\d{4,6}$/.test(rawDate)) {
+        const year = rawDate.slice(0, 4);
+        const month = rawDate.slice(4, 6);
+        const day = rawDate.slice(6, 8);
+        const timePart = rawDate.split(/\s+/)[1];
+        const hour = timePart.slice(0, 2);
+        const min = timePart.slice(2, 4);
+        rawDate = `${year}-${month}-${day} ${hour}:${min}`;
+        o = parseFloat(parts[1]); h = parseFloat(parts[2]); l = parseFloat(parts[3]); c = parseFloat(parts[4]);
+      } else {
         if (parts.length >= 6 && /^\d{1,2}:\d{2}/.test(parts[1])) {
-          timeStr = `${parts[0]} ${parts[1]}`;
+          rawDate = `${parts[0]} ${parts[1]}`;
           o = parseFloat(parts[2]); h = parseFloat(parts[3]); l = parseFloat(parts[4]); c = parseFloat(parts[5]);
         } else {
           o = parseFloat(parts[1]); h = parseFloat(parts[2]); l = parseFloat(parts[3]); c = parseFloat(parts[4]);
         }
-        if ([o, h, l, c].some(Number.isNaN)) continue;
-        const ts = parseTimestampToEAT(timeStr, addHours);
-        if (!ts) continue;
-        rows.push({ ms: ts.ms, timeEAT: ts.label, open: o, high: h, low: l, close: c });
       }
-      return rows;
+
+      if ([o, h, l, c].some(Number.isNaN)) return null;
+      const ts = parseTimestampToEAT(rawDate, addHours);
+      if (!ts) return null;
+      return { ms: ts.ms, timeEAT: ts.label, open: o, high: h, low: l, close: c };
     }
 
     function computeIndicators(candles) {
@@ -438,329 +500,4 @@
           let outcome = 'OPEN';
           let pnlDollars = 0;
           for (let j = i + 1; j < Math.min(i + 35, candles.length); j++) {
-            const future = candles[j];
-            if (type === 'BUY') {
-              if (future.low <= sl) { outcome = 'LOSS'; break; }
-              if (future.high >= tp) { outcome = 'WIN'; break; }
-            } else {
-              if (future.high >= sl) { outcome = 'LOSS'; break; }
-              if (future.low <= tp) { outcome = 'WIN'; break; }
-            }
-          }
-
-          if (outcome === 'WIN') {
-            wins++;
-            pnlDollars = +(risk * 2 * lot * contractValue).toFixed(2);
-            totalProfit += pnlDollars;
-          } else if (outcome === 'LOSS') {
-            losses++;
-            pnlDollars = +(-risk * lot * contractValue).toFixed(2);
-            totalLoss += Math.abs(pnlDollars);
-          }
-
-          trades.push({
-            time: c.timeEAT,
-            type,
-            entry: entry.toFixed(decimals),
-            tp: tp.toFixed(decimals),
-            sl: sl.toFixed(decimals),
-            outcome,
-            pnl: pnlDollars
-          });
-        }
-      }
-      return { trades, wins, losses, totalProfit, totalLoss };
-    }
-
-    function renderAll() {
-      const pair = pairSelect.value;
-      const activeTf = tfSelect.value;
-      const lot = parseFloat(lotInput.value || '0.01');
-      const decimals = pair === 'EURUSD' ? 5 : 2;
-
-      // Analyze all timeframes for selected pair
-      const analyses = {};
-      TIMEFRAMES.forEach(tf => {
-        const s = getSlot(pair, tf);
-        analyses[tf] = analyzeTimeframe(s.candles, pair);
-      });
-
-      // Render 6-slot selector chips
-      const grid = document.getElementById('tfOverviewGrid');
-      grid.innerHTML = '';
-      TIMEFRAMES.forEach(tf => {
-        const s = getSlot(pair, tf);
-        const a = analyses[tf];
-        const chip = document.createElement('div');
-        chip.className = 'tf-chip' + (tf === activeTf ? ' active' : '');
-        let sigHtml = '<span class="tf-sig-empty">EMPTY</span>';
-        if (a) {
-          const cls = a.signal === 'BUY' ? 'tf-sig-buy' : a.signal === 'SELL' ? 'tf-sig-sell' : 'tf-sig-wait';
-          sigHtml = `<span class="${cls}">${a.signal} (${s.candles.length})</span>`;
-        }
-        chip.innerHTML = `<span class="tf-name">${tf}</span>${sigHtml}`;
-        chip.addEventListener('click', () => {
-          tfSelect.value = tf;
-          csvFileInput.value = '';
-          renderAll();
-        });
-        grid.appendChild(chip);
-      });
-
-      // Populate active slot editor
-      const activeSlot = getSlot(pair, activeTf);
-      document.getElementById('editorHeading').textContent = `2. Load Data for ${pair} ${activeTf} Slot`;
-      document.getElementById('structHeading').textContent = `4. Active Slot FVG, Liquidity & Reversal Candles (${activeTf})`;
-      document.getElementById('btHeading').textContent = `5. Active Slot Past Backtest Log & Profit/Loss (${activeTf})`;
-      pasteCsvInput.value = activeSlot.pastedText || '';
-      fileStatus.textContent = activeSlot.fileName
-        ? `Uploaded file: ${activeSlot.fileName} (${activeSlot.fileRows.length} rows)`
-        : `No CSV file uploaded for ${pair} ${activeTf} yet.`;
-
-      // Render Active Slot Structure (FVG, Liquidity, Reversal Candles)
-      const activeAnalysis = analyses[activeTf];
-      const structInfo = document.getElementById('marketStructInfo');
-      if (!activeAnalysis) {
-        structInfo.textContent = `No candles loaded in ${pair} ${activeTf} slot yet.`;
-      } else {
-        const fvgTxt = activeAnalysis.lastFvg
-          ? `${activeAnalysis.lastFvg.type} (${activeAnalysis.lastFvg.low.toFixed(decimals)} - ${activeAnalysis.lastFvg.high.toFixed(decimals)}) at ${activeAnalysis.lastFvg.time}`
-          : 'None detected';
-        const revTxt = activeAnalysis.lastRev
-          ? `${activeAnalysis.lastRev.name} (${activeAnalysis.lastRev.bias}) at ${activeAnalysis.lastRev.price.toFixed(decimals)} (${activeAnalysis.lastRev.time})`
-          : 'None detected';
-        const liqHTxt = activeAnalysis.lastLiqH ? `${activeAnalysis.lastLiqH.level.toFixed(decimals)} (${activeAnalysis.lastLiqH.time})` : 'None';
-        const liqLTxt = activeAnalysis.lastLiqL ? `${activeAnalysis.lastLiqL.level.toFixed(decimals)} (${activeAnalysis.lastLiqL.time})` : 'None';
-
-        structInfo.innerHTML =
-          `<b>Latest FVG:</b> ${fvgTxt}<br/>` +
-          `<b>Major Reversal Candle:</b> ${revTxt}<br/>` +
-          `<b>Buy-Side Liquidity (Swing High):</b> ${liqHTxt}<br/>` +
-          `<b>Sell-Side Liquidity (Swing Low):</b> ${liqLTxt}`;
-      }
-
-      // Multi-Timeframe Confluence Calculation across all loaded slots
-      const loadedTfs = TIMEFRAMES.filter(tf => analyses[tf] !== null);
-      const mtfBox = document.getElementById('mtfSignalBox');
-      const mtfWord = document.getElementById('mtfSignalWord');
-      const mtfReason = document.getElementById('mtfSignalReason');
-      const mtfTpSl = document.getElementById('mtfTpSlReadout');
-      const mtfBreakdown = document.getElementById('mtfBreakdown');
-
-      if (!loadedTfs.length) {
-        mtfBox.className = 'signal-box sig-wait';
-        mtfWord.textContent = 'WAIT';
-        mtfReason.textContent = 'Load at least 1 timeframe (or 4H + 5M) to compute MTF signal.';
-        mtfTpSl.textContent = 'MTF Entry: - | TP: - | SL: -';
-        mtfBreakdown.textContent = '';
-      } else {
-        // Sort loaded timeframes from highest (e.g. 4H) to lowest (e.g. 5M)
-        const sortedDesc = [...loadedTfs].sort((a, b) => TF_WEIGHT[b] - TF_WEIGHT[a]);
-        const htf = sortedDesc[0];
-        const ltf = sortedDesc[sortedDesc.length - 1];
-        const htfA = analyses[htf];
-        const ltfA = analyses[ltf];
-
-        const htfBias = htfA.signal !== 'WAIT'
-          ? htfA.signal
-          : (htfA.last.ema10 > htfA.last.ema20 ? 'BUY' : htfA.last.ema10 < htfA.last.ema20 ? 'SELL' : 'WAIT');
-
-        const ltfConfluenceBull =
-          ltfA.signal === 'BUY' ||
-          (ltfA.last.ema10 > ltfA.last.ema20 && (ltfA.lastFvg?.bias === 'BULL' || ltfA.lastRev?.bias === 'BULL'));
-        const ltfConfluenceBear =
-          ltfA.signal === 'SELL' ||
-          (ltfA.last.ema10 < ltfA.last.ema20 && (ltfA.lastFvg?.bias === 'BEAR' || ltfA.lastRev?.bias === 'BEAR'));
-
-        let finalSig = 'WAIT';
-        let reason = '';
-
-        if (loadedTfs.length === 1) {
-          finalSig = ltfA.signal;
-          reason = `Single-TF mode (${ltf}): ${ltfA.signal} based on EMA, PSAR, CCI, FVG & reversal structure.`;
-        } else if (htfBias === 'BUY' && ltfConfluenceBull) {
-          finalSig = 'BUY';
-          reason = `MTF Aligned (${htf} Bullish Bias + ${ltf} Bullish Entry/FVG/Reversal).`;
-        } else if (htfBias === 'SELL' && ltfConfluenceBear) {
-          finalSig = 'SELL';
-          reason = `MTF Aligned (${htf} Bearish Bias + ${ltf} Bearish Entry/FVG/Reversal).`;
-        } else {
-          finalSig = 'WAIT';
-          reason = `MTF Conflict: ${htf} bias is ${htfBias}, while ${ltf} is ${ltfA.signal}. Wait for alignment.`;
-        }
-
-        const entry = ltfA.last.close;
-        let sl = 0, tp = 0;
-        if (finalSig === 'BUY') {
-          const swingSL = ltfA.lastLiqL ? Math.min(ltfA.last.low, ltfA.lastLiqL.level) : ltfA.last.low;
-          sl = +(swingSL - ltfA.slPad).toFixed(decimals);
-          const risk = Math.max(ltfA.slPad, entry - sl);
-          tp = ltfA.lastLiqH && ltfA.lastLiqH.level > entry + risk
-            ? +ltfA.lastLiqH.level.toFixed(decimals)
-            : +(entry + risk * 2).toFixed(decimals);
-          mtfBox.className = 'signal-box sig-buy';
-        } else if (finalSig === 'SELL') {
-          const swingSL = ltfA.lastLiqH ? Math.max(ltfA.last.high, ltfA.lastLiqH.level) : ltfA.last.high;
-          sl = +(swingSL + ltfA.slPad).toFixed(decimals);
-          const risk = Math.max(ltfA.slPad, sl - entry);
-          tp = ltfA.lastLiqL && ltfA.lastLiqL.level < entry - risk
-            ? +ltfA.lastLiqL.level.toFixed(decimals)
-            : +(entry - risk * 2).toFixed(decimals);
-          mtfBox.className = 'signal-box sig-sell';
-        } else {
-          mtfBox.className = 'signal-box sig-wait';
-        }
-
-        mtfWord.textContent = finalSig;
-        mtfReason.textContent = reason;
-        mtfTpSl.textContent = finalSig === 'WAIT'
-          ? `Current ${ltf} Price (${ltfA.last.timeEAT} EAT): ${entry.toFixed(decimals)} | No active entry (WAIT)`
-          : `MTF Entry (${ltf} @ ${ltfA.last.timeEAT} EAT): ${entry.toFixed(decimals)} | TP: ${tp.toFixed(decimals)} | SL: ${sl.toFixed(decimals)}`;
-
-        mtfBreakdown.textContent = sortedDesc.map(tf => {
-          const a = analyses[tf];
-          const fvg = a.lastFvg ? a.lastFvg.type : 'No FVG';
-          const rev = a.lastRev ? a.lastRev.name : 'No Reversal';
-          return `• ${tf}: ${a.signal} | ${fvg} | ${rev}`;
-        }).join('\n');
-      }
-
-      // Render Active Slot Backtest
-      const perf = document.getElementById('performanceSummary');
-      const tbody = document.getElementById('backtestBody');
-      tbody.innerHTML = '';
-
-      if (!activeAnalysis || activeAnalysis.candles.length < 22) {
-        perf.textContent = `Need at least 22 candles in ${pair} ${activeTf} to run historical backtest.`;
-        return;
-      }
-
-      const bt = runBacktest(activeAnalysis.enriched, activeAnalysis.candles, lot, pair);
-      const startTime = activeAnalysis.candles[0].timeEAT;
-      const endTime = activeAnalysis.candles[activeAnalysis.candles.length - 1].timeEAT;
-      const net = (bt.totalProfit - bt.totalLoss).toFixed(2);
-
-      perf.innerHTML =
-        `From ${startTime} to ${endTime} EAT (${activeTf}): ${bt.trades.length} Entries | ` +
-        `Wins: ${bt.wins} (+$${bt.totalProfit.toFixed(2)}) | Losses: ${bt.losses} (-$${bt.totalLoss.toFixed(2)}) | ` +
-        `Net: <span style="color:${net >= 0 ? 'var(--buy)' : 'var(--sell)'}">$${net}</span>`;
-
-      bt.trades.slice(-25).reverse().forEach(t => {
-        const tr = document.createElement('tr');
-        const badge = t.outcome === 'WIN'
-          ? '<span class="pill pill-win">PROFIT</span>'
-          : t.outcome === 'LOSS'
-            ? '<span class="pill pill-loss">LOSS</span>'
-            : '<span class="pill">OPEN</span>';
-        tr.innerHTML = `
-          <td>${t.time}</td>
-          <td><b>${t.type}</b></td>
-          <td>${t.entry}</td>
-          <td>${t.tp}</td>
-          <td>${t.sl}</td>
-          <td>${badge}</td>
-          <td style="color:${t.pnl >= 0 ? 'var(--buy)' : 'var(--sell)'}">$${t.pnl.toFixed(2)}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    csvFileInput.addEventListener('change', async (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      const text = await file.text();
-      const slot = getSlot();
-      slot.fileName = file.name;
-      slot.fileRows = parseCSVText(text, parseFloat(tzOffset.value || '3'));
-      saveStore();
-      renderAll();
-      mergeStatus.textContent = `Loaded ${slot.fileRows.length} file rows into ${pairSelect.value} ${tfSelect.value}. Tap Mix Slot to run.`;
-    });
-
-    document.getElementById('mergeBtn').addEventListener('click', () => {
-      const slot = getSlot();
-      slot.pastedText = pasteCsvInput.value;
-      const pastedRows = parseCSVText(slot.pastedText, parseFloat(tzOffset.value || '3'));
-      const map = new Map();
-      [...slot.fileRows, ...pastedRows].forEach(r => map.set(r.ms, r));
-      slot.candles = Array.from(map.values()).sort((a, b) => a.ms - b.ms);
-      saveStore();
-      mergeStatus.textContent = `Merged ${slot.candles.length} unique EAT candles in ${pairSelect.value} ${tfSelect.value}. MTF updated.`;
-      renderAll();
-    });
-
-    document.getElementById('clearSlotBtn').addEventListener('click', () => {
-      delete store[slotKey()];
-      csvFileInput.value = '';
-      pasteCsvInput.value = '';
-      saveStore();
-      renderAll();
-      mergeStatus.textContent = `Cleared ${slotKey()}.`;
-    });
-
-    document.getElementById('clearAllPairBtn').addEventListener('click', () => {
-      const pair = pairSelect.value;
-      TIMEFRAMES.forEach(tf => delete store[slotKey(pair, tf)]);
-      csvFileInput.value = '';
-      pasteCsvInput.value = '';
-      saveStore();
-      renderAll();
-      mergeStatus.textContent = `Cleared all timeframe slots for ${pair}.`;
-    });
-
-    document.getElementById('loadMtfSampleBtn').addEventListener('click', () => {
-      const pair = pairSelect.value;
-      // Populate 4H bullish trend + 5M bullish FVG/Engulfing alignment
-      const slot4H = getSlot(pair, '4H');
-      const rows4H = [];
-      let p4 = pair === 'EURUSD' ? 1.0800 : 3820.0;
-      const step4 = pair === 'EURUSD' ? 0.0012 : 3.5;
-      for (let i = 0; i < 30; i++) {
-        const day = 10 + Math.floor((i * 4) / 24);
-        const hr = String((i * 4) % 24).padStart(2, '0');
-        const o = p4;
-        const c = +(p4 + (i % 4 === 0 ? -step4 * 0.4 : step4)).toFixed(pair === 'EURUSD' ? 5 : 2);
-        const h = +(Math.max(o, c) + step4 * 0.4).toFixed(pair === 'EURUSD' ? 5 : 2);
-        const l = +(Math.min(o, c) - step4 * 0.3).toFixed(pair === 'EURUSD' ? 5 : 2);
-        rows4H.push(`2026-11-${String(day).padStart(2, '0')} ${hr}:00,${o},${h},${l},${c}`);
-        p4 = c;
-      }
-      slot4H.pastedText = rows4H.join('\n');
-      slot4H.candles = parseCSVText(slot4H.pastedText, 3);
-
-      const slot5M = getSlot(pair, '5M');
-      const rows5M = [];
-      let p5 = p4 - (pair === 'EURUSD' ? 0.0020 : 6.0);
-      const step5 = pair === 'EURUSD' ? 0.0003 : 1.1;
-      for (let i = 0; i < 35; i++) {
-        const min = i * 5;
-        const hr = String(7 + Math.floor(min / 60)).padStart(2, '0');
-        const mm = String(min % 60).padStart(2, '0');
-        const o = p5;
-        const c = +(p5 + (i % 3 === 0 ? -step5 * 0.5 : step5)).toFixed(pair === 'EURUSD' ? 5 : 2);
-        const h = +(Math.max(o, c) + step5 * 0.45).toFixed(pair === 'EURUSD' ? 5 : 2);
-        const l = +(Math.min(o, c) - step5 * 0.35).toFixed(pair === 'EURUSD' ? 5 : 2);
-        rows5M.push(`2026-11-18 ${hr}:${mm},${o},${h},${l},${c}`);
-        p5 = c;
-      }
-      slot5M.pastedText = rows5M.join('\n');
-      slot5M.candles = parseCSVText(slot5M.pastedText, 3);
-
-      tfSelect.value = '5M';
-      saveStore();
-      renderAll();
-      mergeStatus.textContent = `Loaded 4H + 5M self-test for ${pair}. Both slots active in MTF engine.`;
-    });
-
-    [pairSelect, tfSelect].forEach(el => el.addEventListener('change', () => {
-      csvFileInput.value = '';
-      renderAll();
-    }));
-
-    lotInput.addEventListener('input', renderAll);
-    tzOffset.addEventListener('change', renderAll);
-
-    renderAll();
-  </script>
-</body>
-</html>
+     
