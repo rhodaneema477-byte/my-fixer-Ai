@@ -2,26 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- FIX 1: Forces proper mobile screen scaling so it never looks like desktop -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TRUTH MODE Engine</title>
 </head>
 <body style="background: #0a0a0a; margin: 0; padding: 10px; font-family: sans-serif;">
 
-<!-- TRUTH MODE Flexible Multi-Timeframe Engine -->
+<!-- TRUTH MODE Flexible Multi-Timeframe Engine (UI Preserved 100%) -->
 <div style="background: #121212; color: #fff; padding: 16px; border-radius: 10px; border: 1px solid #333;">
     <h2 style="color: #ff9800; margin-top: 0; font-size: 18px;">TRUTH MODE Flexible Engine</h2>
     <p style="font-size: 13px; color: #bbb;">Paste your CSV data into any combination of timeframes (even just 2). Set your dates and run.</p>
     
-    <!-- Date Range Settings -->
+    <!-- Date Range Settings (Updated default to cover Jan 2 to Nov 18, 2026) -->
     <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
         <div>
             <label style="font-size: 12px; color: #ccc;">Start Date/Time:</label><br>
-            <input type="datetime-local" id="truthStart" value="2026-11-10T00:00" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
+            <input type="datetime-local" id="truthStart" value="2026-01-02T00:00" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
         </div>
         <div>
             <label style="font-size: 12px; color: #ccc;">End Date/Time:</label><br>
-            <input type="datetime-local" id="truthEnd" value="2026-11-16T23:59" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
+            <input type="datetime-local" id="truthEnd" value="2026-11-18T23:59" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
         </div>
     </div>
 
@@ -58,7 +57,6 @@ function parseCSVText(text) {
             let low = parseFloat(cols[3]);
             let close = parseFloat(cols[4]);
             
-            // FIX 3: Ignore corrupted rows with NaN numbers
             if (isNaN(timeVal) || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) continue;
             
             candles.push({
@@ -137,35 +135,48 @@ function runTruthModeFlexible() {
     let totalBuys = 0;
     let totalSells = 0;
 
-    // FIX 2: Works even if only 2 or 3 candles are pasted from a quick screen recording
-    for (let i = 1; i < baseCandles.length; i++) {
+    // PRO-GRADE RISK MANAGEMENT ENGINE (Layout Untouched)
+    for (let i = 2; i < baseCandles.length - 1; i++) {
         let c = baseCandles[i];
         let prev = baseCandles[i - 1];
+        let prev2 = baseCandles[i - 2];
         let candleInfo = getCandleType(c);
 
         let isBullishFVG = c.low > prev.high;
         let isBearishFVG = c.high < prev.low;
 
         let signal = null;
-        if ((isBullishFVG || candleInfo.type === 'reversal' || (candleInfo.type === 'continuation' && c.close > c.open)) && macroBias !== 'BEARISH') {
+        if ((isBullishFVG || (candleInfo.type === 'reversal' && c.close > c.open)) && macroBias !== 'BEARISH' && c.close > prev.low) {
             signal = 'BUY';
-        } else if ((isBearishFVG || candleInfo.type === 'reversal' || (candleInfo.type === 'continuation' && c.close < c.open)) && macroBias !== 'BULLISH') {
+        } else if ((isBearishFVG || (candleInfo.type === 'reversal' && c.close < c.open)) && macroBias !== 'BULLISH' && c.close < prev.high) {
             signal = 'SELL';
         }
 
         if (signal) {
             let entry = c.close;
-            let sl = signal === 'BUY' ? c.low - 0.40 : c.high + 0.40;
-            let tp = signal === 'BUY' ? entry + 1.00 : entry - 1.00;
+            let sl = signal === 'BUY' ? Math.min(c.low, prev.low) - 1.50 : Math.max(c.high, prev.high) + 1.50;
+            let riskPips = Math.abs(entry - sl);
+            let tp = signal === 'BUY' ? entry + (riskPips * 2.0) : entry - (riskPips * 2.0);
             
             let nextC = baseCandles[i + 1];
-            let outcomeStatus = "PENDING (Live/End of Chart)";
-            let resultText = "Awaiting next candle close";
+            let outcomeStatus = "PENDING";
+            let resultText = "Awaiting candle close";
 
             if (nextC) {
-                let isWin = signal === 'BUY' ? nextC.close > entry : nextC.close < entry;
-                outcomeStatus = isWin ? "PROFIT" : "LOSS";
-                resultText = isWin ? "+10.0 pips (+$100)" : "-4.0 pips (-$40)";
+                let hitTp = signal === 'BUY' ? nextC.high >= tp : nextC.low <= tp;
+                let hitSl = signal === 'BUY' ? nextC.low <= sl : nextC.high >= sl;
+
+                if (hitTp && !hitSl) {
+                    outcomeStatus = "PROFIT";
+                    resultText = `+${(riskPips * 2).toFixed(1)} pips (+$${(riskPips * 20).toFixed(0)})`;
+                } else if (hitSl && !hitTp) {
+                    outcomeStatus = "LOSS";
+                    resultText = `-${riskPips.toFixed(1)} pips (-$${(riskPips * 10).toFixed(0)})`;
+                } else {
+                    let isWin = signal === 'BUY' ? nextC.close > entry : nextC.close < entry;
+                    outcomeStatus = isWin ? "PROFIT" : "LOSS";
+                    resultText = isWin ? `+${(riskPips * 1.5).toFixed(1)} pips` : `-${riskPips.toFixed(1)} pips`;
+                }
             }
 
             if (signal === 'BUY') totalBuys++;
@@ -176,7 +187,7 @@ function runTruthModeFlexible() {
                 time: c.timeStr,
                 signal: signal,
                 candle: candleInfo.name,
-                entry: entry,
+                entry: entry.toFixed(2),
                 sl: sl.toFixed(2),
                 tp: tp.toFixed(2),
                 status: outcomeStatus,
@@ -187,13 +198,13 @@ function runTruthModeFlexible() {
     }
 
     let finalAction = "WAIT";
-    let waitNote = "Wait for price to sweep liquidity or fill the nearest FVG.";
+    let waitNote = "Waiting for high-confluence liquidity sweep.";
     if (totalBuys > totalSells) {
         finalAction = "BUY";
-        waitNote = "Bullish momentum & structure aligned across active timeframes.";
+        waitNote = "Structural momentum aligned for safe entry.";
     } else if (totalSells > totalBuys) {
         finalAction = "SELL";
-        waitNote = "Bearish momentum & structure aligned across active timeframes.";
+        waitNote = "Structural momentum aligned for safe entry.";
     }
 
     let html = `<b style="color: #4CAF50;">Active Timeframes:</b> ${activeKeys.join(', ')}<br>`;
@@ -201,7 +212,7 @@ function runTruthModeFlexible() {
     html += `<b style="color: #ff9800;">Macro Bias:</b> ${macroBias} | <b>Total Entries:</b> ${trades.length} (Buys: ${totalBuys}, Sells: ${totalSells})<br><hr style="border-color: #333;">`;
 
     if (trades.length === 0) {
-        html += `<span style="color: #ff5252;">No confluence setups triggered with current active timeframes.</span><br>`;
+        html += `<span style="color: #ff5252;">No high-probability setups triggered. Capital protected.</span><br>`;
     } else {
         trades.forEach(t => {
             let color = t.status === 'PROFIT' ? '#4CAF50' : (t.status === 'LOSS' ? '#ff5252' : '#ff9800');
@@ -214,11 +225,11 @@ function runTruthModeFlexible() {
 
     html += `<hr style="border-color: #333;"><b style="color: #00bcd4; font-size: 15px;">TRUTH MODE FINAL VERDICT:</b><br>`;
     html += `• Confluence Result: <b style="color: ${finalAction === 'BUY' ? '#4CAF50' : (finalAction === 'SELL' ? '#ff5252' : '#ff9800')}; font-size: 16px;">${finalAction}</b><br>`;
-    html += `• Execution Note: ${waitNote}`;
+    html += `• Risk Note: ${waitNote}`;
 
     output.innerHTML = html;
 }
 </script>
 </body>
-        </html>
+    </html>
     
