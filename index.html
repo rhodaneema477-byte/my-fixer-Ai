@@ -12,7 +12,7 @@
     <h2 style="color: #ff9800; margin-top: 0; font-size: 18px;">TRUTH MODE Flexible Engine</h2>
     <p style="font-size: 13px; color: #bbb;">Paste your CSV data into any combination of timeframes (even just 2). Set your dates and run.</p>
     
-    <!-- Date Range Settings (Updated default to cover Jan 2 to Nov 18, 2026) -->
+    <!-- Date Range Settings -->
     <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
         <div>
             <label style="font-size: 12px; color: #ccc;">Start Date/Time:</label><br>
@@ -20,7 +20,7 @@
         </div>
         <div>
             <label style="font-size: 12px; color: #ccc;">End Date/Time:</label><br>
-            <input type="datetime-local" id="truthEnd" value="2026-11-18T23:59" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
+            <input type="datetime-local" id="truthEnd" value="2026-11-20T23:59" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
         </div>
     </div>
 
@@ -73,21 +73,170 @@ function parseCSVText(text) {
     return candles.sort((a, b) => a.time - b.time);
 }
 
-function getCandleType(c) {
+// COMPLETE CANDLESTICK CLASSIFIER: ROLE (REVERSAL / CONTINUATION / COMPRESSION) + MOMENTUM (0-100%)
+function analyzeCandleMomentum(c, prev, prev2, avgVol) {
     let body = Math.abs(c.close - c.open);
     let totalRange = c.high - c.low;
-    if (totalRange === 0) return { type: 'neutral', name: 'Doji' };
+    if (totalRange === 0) {
+        return { dir: 'neutral', role: 'COMPRESSION', momentum: 10, name: 'Doji (Zero Range)' };
+    }
+
     let upperWick = c.high - Math.max(c.open, c.close);
     let lowerWick = Math.min(c.open, c.close) - c.low;
+    let bodyRatio = body / totalRange;
+    let isBull = c.close > c.open;
+    let isBear = c.close < c.open;
 
-    if (body / totalRange > 0.6) {
-        return { type: 'continuation', name: c.close > c.open ? 'Strong Bullish (Continuation)' : 'Strong Bearish (Continuation)' };
-    } else if (lowerWick > body * 2) {
-        return { type: 'reversal', name: 'Bullish Pin Bar / Hammer (Reversal Zone)' };
-    } else if (upperWick > body * 2) {
-        return { type: 'reversal', name: 'Bearish Shooting Star (Reversal Zone)' };
+    let volBoost = (avgVol > 0 && c.volume > 0) ? Math.min(10, Math.max(-5, Math.round(((c.volume - avgVol) / avgVol) * 8))) : 0;
+    let baseMomentum = Math.min(99, Math.max(15, Math.round(bodyRatio * 85 + volBoost)));
+
+    let prevBody = prev ? Math.abs(prev.close - prev.open) : 0;
+    let prevIsBull = prev ? prev.close > prev.open : false;
+    let prevIsBear = prev ? prev.close < prev.open : false;
+
+    // 1. 3-Candle Reversal: Morning Star / Evening Star
+    if (prev && prev2) {
+        let p2Body = Math.abs(prev2.close - prev2.open);
+        let p2Range = prev2.high - prev2.low;
+        let mid2 = (prev2.open + prev2.close) / 2;
+        if (prev2.close < prev2.open && p2Body > p2Range * 0.45 && prevBody < p2Body * 0.45 && isBull && c.close > mid2) {
+            return { dir: 'bull', role: 'REVERSAL', momentum: Math.min(98, 88 + volBoost), name: 'Morning Star (Bullish Reversal)' };
+        }
+        if (prev2.close > prev2.open && p2Body > p2Range * 0.45 && prevBody < p2Body * 0.45 && isBear && c.close < mid2) {
+            return { dir: 'bear', role: 'REVERSAL', momentum: Math.min(98, 88 + volBoost), name: 'Evening Star (Bearish Reversal)' };
+        }
     }
-    return { type: 'neutral', name: 'Standard Price Action' };
+
+    // 2. Engulfing & Tweezer Reversals
+    if (prev) {
+        if (isBull && prevIsBear && c.close >= prev.open && c.open <= prev.close && body >= prevBody * 0.95) {
+            return { dir: 'bull', role: 'REVERSAL', momentum: Math.min(98, Math.max(76, baseMomentum + 10)), name: 'Bullish Engulfing (Reversal)' };
+        }
+        if (isBear && prevIsBull && c.close <= prev.open && c.open >= prev.close && body >= prevBody * 0.95) {
+            return { dir: 'bear', role: 'REVERSAL', momentum: Math.min(98, Math.max(76, baseMomentum + 10)), name: 'Bearish Engulfing (Reversal)' };
+        }
+        if (isBull && prevIsBear && Math.abs(c.low - prev.low) <= totalRange * 0.10 && bodyRatio >= 0.4) {
+            return { dir: 'bull', role: 'REVERSAL', momentum: Math.min(92, Math.max(74, baseMomentum + 6)), name: 'Tweezer Bottom (Reversal)' };
+        }
+        if (isBear && prevIsBull && Math.abs(c.high - prev.high) <= totalRange * 0.10 && bodyRatio >= 0.4) {
+            return { dir: 'bear', role: 'REVERSAL', momentum: Math.min(92, Math.max(74, baseMomentum + 6)), name: 'Tweezer Top (Reversal)' };
+        }
+    }
+
+    // 3. Doji Reversals: Dragonfly & Gravestone
+    if (bodyRatio <= 0.15 && lowerWick >= totalRange * 0.60) {
+        return { dir: 'bull', role: 'REVERSAL', momentum: Math.min(94, Math.max(75, Math.round((lowerWick / totalRange) * 95) + volBoost)), name: 'Dragonfly Doji (Bullish Reversal)' };
+    }
+    if (bodyRatio <= 0.15 && upperWick >= totalRange * 0.60) {
+        return { dir: 'bear', role: 'REVERSAL', momentum: Math.min(94, Math.max(75, Math.round((upperWick / totalRange) * 95) + volBoost)), name: 'Gravestone Doji (Bearish Reversal)' };
+    }
+
+    // 4. Pin Bars / Hammers / Shooting Stars / Inverted Hammers
+    if (lowerWick >= body * 2.0 && lowerWick >= totalRange * 0.50) {
+        let revMom = Math.min(95, Math.max(68, Math.round((lowerWick / totalRange) * 92) + (isBull ? 8 : 0) + volBoost));
+        return { dir: 'bull', role: 'REVERSAL', momentum: revMom, name: isBull ? 'Bullish Hammer / Pin Bar (Reversal)' : 'Inverted/Hammer Wick Rejection (Reversal)' };
+    }
+    if (upperWick >= body * 2.0 && upperWick >= totalRange * 0.50) {
+        let revMom = Math.min(95, Math.max(68, Math.round((upperWick / totalRange) * 92) + (isBear ? 8 : 0) + volBoost));
+        return { dir: 'bear', role: 'REVERSAL', momentum: revMom, name: isBear ? 'Shooting Star / Bear Pin Bar (Reversal)' : 'Upper Wick Rejection (Reversal)' };
+    }
+
+    // 5. Marubozu & Strong Momentum Continuation Candles
+    if (bodyRatio >= 0.80) {
+        return { dir: isBull ? 'bull' : 'bear', role: 'CONTINUATION', momentum: Math.min(99, Math.max(82, baseMomentum + 8)), name: isBull ? 'Bullish Marubozu (Strong Continuation)' : 'Bearish Marubozu (Strong Continuation)' };
+    }
+    if (bodyRatio >= 0.58) {
+        return { dir: isBull ? 'bull' : 'bear', role: 'CONTINUATION', momentum: Math.min(94, Math.max(65, baseMomentum)), name: isBull ? 'Strong Bullish Candle (Continuation)' : 'Strong Bearish Candle (Continuation)' };
+    }
+
+    // 6. Inside Bar / Harami Compression or Spinning Top
+    if (prev && c.high <= prev.high && c.low >= prev.low) {
+        return { dir: 'neutral', role: 'COMPRESSION', momentum: Math.max(20, 40 + volBoost), name: 'Inside Bar / Harami (Compression)' };
+    }
+
+    return {
+        dir: isBull ? 'bull' : (isBear ? 'bear' : 'neutral'),
+        role: 'CONTINUATION',
+        momentum: Math.max(25, Math.min(64, baseMomentum)),
+        name: isBull ? 'Standard Bullish / Spinning Top' : (isBear ? 'Standard Bearish / Spinning Top' : 'Spinning Top / Doji')
+    };
+}
+
+// FULL LIQUIDITY POOLS, INDUCEMENT & FVG STATE TRACKER
+function evaluateMarketStructure(candles, idx) {
+    let c = candles[idx];
+    let prev = candles[idx - 1];
+    let prev2 = candles[idx - 2];
+
+    let lookbackStart = Math.max(0, idx - 10);
+    let win = candles.slice(lookbackStart, idx);
+
+    let swingHighs = [];
+    let swingLows = [];
+    for (let k = 1; k < win.length - 1; k++) {
+        if (win[k].high >= win[k - 1].high && win[k].high >= win[k + 1].high) {
+            swingHighs.push(win[k].high);
+        }
+        if (win[k].low <= win[k - 1].low && win[k].low <= win[k + 1].low) {
+            swingLows.push(win[k].low);
+        }
+    }
+
+    let maxWinHigh = Math.max(...win.map(x => x.high));
+    let minWinLow = Math.min(...win.map(x => x.low));
+    let bslPool = swingHighs.length > 0 ? Math.max(...swingHighs) : maxWinHigh;
+    let sslPool = swingLows.length > 0 ? Math.min(...swingLows) : minWinLow;
+
+    let tol = Math.max(0.5, (maxWinHigh - minWinLow) * 0.015);
+    let hasEqualHighs = swingHighs.some((h1, a) => swingHighs.some((h2, b) => a !== b && Math.abs(h1 - h2) <= tol));
+    let hasEqualLows = swingLows.some((l1, a) => swingLows.some((l2, b) => a !== b && Math.abs(l1 - l2) <= tol));
+
+    let inducementHigh = prev2 ? Math.max(prev.high, prev2.high) : prev.high;
+    let inducementLow = prev2 ? Math.min(prev.low, prev2.low) : prev.low;
+
+    let sweptBSL = (c.high > bslPool || (prev && prev.high > bslPool)) && c.close < bslPool;
+    let sweptSSL = (c.low < sslPool || (prev && prev.low < sslPool)) && c.close > sslPool;
+    let sweptIDMHigh = c.high > inducementHigh && c.close < inducementHigh;
+    let sweptIDMLow = c.low < inducementLow && c.close > inducementLow;
+
+    let bullFVG = null;
+    let bearFVG = null;
+    if (prev2 && c.low > prev2.high) {
+        bullFVG = { top: c.low, bottom: prev2.high, ce: (c.low + prev2.high) / 2 };
+    }
+    if (prev2 && c.high < prev2.low) {
+        bearFVG = { top: prev2.low, bottom: c.high, ce: (prev2.low + c.high) / 2 };
+    }
+
+    let priorBullFVG = null;
+    let priorBearFVG = null;
+    if (idx >= 4) {
+        let cA = candles[idx - 3];
+        let cC = candles[idx - 1];
+        if (cC.low > cA.high) priorBullFVG = { top: cC.low, bottom: cA.high, ce: (cC.low + cA.high) / 2 };
+        if (cC.high < cA.low) priorBearFVG = { top: cA.low, bottom: cC.high, ce: (cA.low + cC.high) / 2 };
+    }
+
+    let mitigatedBullFVG = priorBullFVG && c.low <= priorBullFVG.top && c.close >= priorBullFVG.bottom;
+    let mitigatedBearFVG = priorBearFVG && c.high >= priorBearFVG.bottom && c.close <= priorBearFVG.top;
+    let invertedToBullFVG = priorBearFVG && c.close > priorBearFVG.top;
+    let invertedToBearFVG = priorBullFVG && c.close < priorBullFVG.bottom;
+
+    let closes = win.map(x => x.close);
+    let maxClose = Math.max(...closes);
+    let minClose = Math.min(...closes);
+    let isRanging = (maxClose < maxWinHigh * 0.9985) && (minClose > minWinLow * 1.0015) && ((maxWinHigh - minWinLow) > 0);
+
+    return {
+        bslPool, sslPool, maxWinHigh, minWinLow,
+        hasEqualHighs, hasEqualLows,
+        inducementHigh, inducementLow,
+        sweptBSL, sweptSSL, sweptIDMHigh, sweptIDMLow,
+        bullFVG, bearFVG,
+        mitigatedBullFVG, mitigatedBearFVG,
+        invertedToBullFVG, invertedToBearFVG,
+        isRanging
+    };
 }
 
 function runTruthModeFlexible() {
@@ -112,11 +261,11 @@ function runTruthModeFlexible() {
         return;
     }
 
-    let baseTf = activeDatasets['5M'] ? '5M' : activeKeys[0];
+    let baseTf = activeDatasets['5M'] ? '5M' : (activeDatasets['15M'] ? '15M' : activeKeys[0]);
     let baseCandles = activeDatasets[baseTf].filter(c => c.time >= startTime && c.time <= endTime);
 
-    if (baseCandles.length < 2) {
-        output.innerHTML = `<span style="color: #ff5252;">Error: Need at least 2 candles in the selected date range for ${baseTf}. Check your dates or pasted CSV.</span>`;
+    if (baseCandles.length < 5) {
+        output.innerHTML = `<span style="color: #ff5252;">Error: Need at least 5 candles in the selected date range for ${baseTf}. Check your dates or pasted CSV.</span>`;
         return;
     }
 
@@ -127,109 +276,209 @@ function runTruthModeFlexible() {
     });
 
     if (htfCandles.length > 0) {
-        let bullishCount = htfCandles.filter(c => c.close > c.open).length;
-        macroBias = bullishCount >= htfCandles.length / 2 ? 'BULLISH' : 'BEARISH';
+        let recentHtf = htfCandles.slice(-8);
+        let bullishCount = recentHtf.filter(c => c.close > c.open).length;
+        macroBias = bullishCount > recentHtf.length / 2 ? 'BULLISH' : (bullishCount < recentHtf.length / 2 ? 'BEARISH' : 'NEUTRAL');
     }
+
+    let vols = baseCandles.map(x => x.volume).filter(v => v > 0);
+    let avgVol = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) / vols.length : 0;
 
     let trades = [];
     let totalBuys = 0;
     let totalSells = 0;
+    let zigzagLeg = 'DOWN';
+    let lastPivotHigh = baseCandles[0].high;
+    let lastPivotLow = baseCandles[0].low;
+    let latestTrade = null;
 
-    // PRO-GRADE RISK MANAGEMENT ENGINE (Layout Untouched)
-    for (let i = 2; i < baseCandles.length - 1; i++) {
+    for (let i = 3; i < baseCandles.length; i++) {
         let c = baseCandles[i];
         let prev = baseCandles[i - 1];
         let prev2 = baseCandles[i - 2];
-        let candleInfo = getCandleType(c);
 
-        let isBullishFVG = c.low > prev.high;
-        let isBearishFVG = c.high < prev.low;
+        let struct = evaluateMarketStructure(baseCandles, i);
+        let candle = analyzeCandleMomentum(c, prev, prev2, avgVol);
+
+        let isBullClose = c.close > c.open;
+        let isBearClose = c.close < c.open;
+
+        if (prev.high >= prev2.high && prev.high >= c.high) {
+            lastPivotHigh = prev.high;
+        }
+        if (prev.low <= prev2.low && prev.low <= c.low) {
+            lastPivotLow = prev.low;
+        }
+
+        let bullReversalSignal = isBullClose && candle.role === 'REVERSAL' && candle.dir === 'bull' && candle.momentum >= 68 &&
+            (struct.sweptSSL || struct.sweptIDMLow || struct.mitigatedBullFVG || struct.invertedToBullFVG || c.close > lastPivotHigh);
+
+        let bearReversalSignal = isBearClose && candle.role === 'REVERSAL' && candle.dir === 'bear' && candle.momentum >= 68 &&
+            (struct.sweptBSL || struct.sweptIDMHigh || struct.mitigatedBearFVG || struct.invertedToBearFVG || c.close < lastPivotLow);
+
+        let bullContinuationSignal = isBullClose && candle.role === 'CONTINUATION' && candle.dir === 'bull' && candle.momentum >= 72 &&
+            (struct.bullFVG || struct.invertedToBullFVG || c.close > lastPivotHigh) && macroBias !== 'BEARISH';
+
+        let bearContinuationSignal = isBearClose && candle.role === 'CONTINUATION' && candle.dir === 'bear' && candle.momentum >= 72 &&
+            (struct.bearFVG || struct.invertedToBearFVG || c.close < lastPivotLow) && macroBias !== 'BULLISH';
 
         let signal = null;
-        if ((isBullishFVG || (candleInfo.type === 'reversal' && c.close > c.open)) && macroBias !== 'BEARISH' && c.close > prev.low) {
+        let modeTag = '';
+        let tags = [];
+
+        if (struct.isRanging) tags.push(`Range[${struct.minWinLow.toFixed(2)}-${struct.maxWinHigh.toFixed(2)}]`);
+        if (struct.sweptSSL) tags.push(`SSL Sweep(${struct.sslPool.toFixed(2)})`);
+        if (struct.sweptBSL) tags.push(`BSL Sweep(${struct.bslPool.toFixed(2)})`);
+        if (struct.sweptIDMLow) tags.push('IDM Low Sweep');
+        if (struct.sweptIDMHigh) tags.push('IDM High Sweep');
+        if (struct.hasEqualLows) tags.push('Equal Lows Pool');
+        if (struct.hasEqualHighs) tags.push('Equal Highs Pool');
+        if (struct.bullFVG) tags.push(`Bull FVG(50% CE ${struct.bullFVG.ce.toFixed(2)})`);
+        if (struct.bearFVG) tags.push(`Bear FVG(50% CE ${struct.bearFVG.ce.toFixed(2)})`);
+        if (struct.mitigatedBullFVG) tags.push('Bull FVG Mitigated');
+        if (struct.mitigatedBearFVG) tags.push('Bear FVG Mitigated');
+        if (struct.invertedToBullFVG) tags.push('Bull IFVG');
+        if (struct.invertedToBearFVG) tags.push('Bear IFVG');
+
+        if (bullReversalSignal || bullContinuationSignal) {
             signal = 'BUY';
-        } else if ((isBearishFVG || (candleInfo.type === 'reversal' && c.close < c.open)) && macroBias !== 'BULLISH' && c.close < prev.high) {
+            if (bullReversalSignal && zigzagLeg !== 'UP') {
+                zigzagLeg = 'UP';
+                modeTag = 'ZigZag Reversal UP';
+            } else {
+                modeTag = candle.role === 'CONTINUATION' ? 'ZigZag Continuation UP' : 'ZigZag Reversal UP';
+            }
+            if (tags.length === 0) tags.push('Bullish Structure Break');
+        } else if (bearReversalSignal || bearContinuationSignal) {
             signal = 'SELL';
+            if (bearReversalSignal && zigzagLeg !== 'DOWN') {
+                zigzagLeg = 'DOWN';
+                modeTag = 'ZigZag Reversal DOWN';
+            } else {
+                modeTag = candle.role === 'CONTINUATION' ? 'ZigZag Continuation DOWN' : 'ZigZag Reversal DOWN';
+            }
+            if (tags.length === 0) tags.push('Bearish Structure Break');
         }
 
         if (signal) {
             let entry = c.close;
-            let sl = signal === 'BUY' ? Math.min(c.low, prev.low) - 1.50 : Math.max(c.high, prev.high) + 1.50;
-            let riskPips = Math.abs(entry - sl);
-            let tp = signal === 'BUY' ? entry + (riskPips * 2.0) : entry - (riskPips * 2.0);
-            
-            let nextC = baseCandles[i + 1];
-            let outcomeStatus = "PENDING";
-            let resultText = "Awaiting candle close";
+            let buffer = 1.50;
+            let stAnchor = signal === 'BUY'
+                ? Math.min(c.low, prev.low, struct.sweptSSL ? struct.sslPool : c.low, lastPivotLow)
+                : Math.max(c.high, prev.high, struct.sweptBSL ? struct.bslPool : c.high, lastPivotHigh);
+            let st = signal === 'BUY' ? (stAnchor - buffer) : (stAnchor + buffer);
 
-            if (nextC) {
-                let hitTp = signal === 'BUY' ? nextC.high >= tp : nextC.low <= tp;
-                let hitSl = signal === 'BUY' ? nextC.low <= sl : nextC.high >= sl;
+            if (signal === 'BUY' && st >= entry) st = Math.min(c.low, prev.low) - buffer;
+            if (signal === 'SELL' && st <= entry) st = Math.max(c.high, prev.high) + buffer;
 
-                if (hitTp && !hitSl) {
+            let riskDist = Math.max(0.50, Math.abs(entry - st));
+            let toTarget = signal === 'BUY' ? (entry + riskDist * 2.0) : (entry - riskDist * 2.0);
+
+            let outcomeStatus = "LIVE / ACTIVE";
+            let resultText = `TO ${toTarget.toFixed(2)} | ST ${st.toFixed(2)}`;
+            for (let f = i + 1; f < baseCandles.length; f++) {
+                let fc = baseCandles[f];
+                let hitTO = signal === 'BUY' ? fc.high >= toTarget : fc.low <= toTarget;
+                let hitST = signal === 'BUY' ? fc.low <= st : fc.high >= st;
+                if (hitTO && !hitST) {
                     outcomeStatus = "PROFIT";
-                    resultText = `+${(riskPips * 2).toFixed(1)} pips (+$${(riskPips * 20).toFixed(0)})`;
-                } else if (hitSl && !hitTp) {
+                    resultText = `+${(riskDist * 2.0).toFixed(2)} pts (Hit TO ${toTarget.toFixed(2)})`;
+                    break;
+                } else if (hitST && !hitTO) {
                     outcomeStatus = "LOSS";
-                    resultText = `-${riskPips.toFixed(1)} pips (-$${(riskPips * 10).toFixed(0)})`;
-                } else {
-                    let isWin = signal === 'BUY' ? nextC.close > entry : nextC.close < entry;
+                    resultText = `-${riskDist.toFixed(2)} pts (Hit ST ${st.toFixed(2)})`;
+                    break;
+                } else if (hitTO && hitST) {
+                    let isWin = signal === 'BUY' ? fc.close >= entry : fc.close <= entry;
                     outcomeStatus = isWin ? "PROFIT" : "LOSS";
-                    resultText = isWin ? `+${(riskPips * 1.5).toFixed(1)} pips` : `-${riskPips.toFixed(1)} pips`;
+                    resultText = isWin ? `+${(riskDist * 2.0).toFixed(2)} pts` : `-${riskDist.toFixed(2)} pts`;
+                    break;
                 }
             }
 
             if (signal === 'BUY') totalBuys++;
             else totalSells++;
 
-            trades.push({
+            let tradeObj = {
                 num: trades.length + 1,
                 time: c.timeStr,
                 signal: signal,
-                candle: candleInfo.name,
+                zigzag: modeTag,
+                candle: `${candle.name} [${candle.role} | Momentum: ${candle.momentum}%]`,
+                confluence: tags.join(' + '),
                 entry: entry.toFixed(2),
-                sl: sl.toFixed(2),
-                tp: tp.toFixed(2),
+                st: st.toFixed(2),
+                to: toTarget.toFixed(2),
+                rawEntry: entry,
+                rawSt: st,
+                rawTo: toTarget,
                 status: outcomeStatus,
                 result: resultText
-            });
-            i += 1;
+            };
+            trades.push(tradeObj);
+            latestTrade = tradeObj;
+            if (i < baseCandles.length - 2) i += 1;
         }
     }
 
-    let finalAction = "WAIT";
-    let waitNote = "Waiting for high-confluence liquidity sweep.";
-    if (totalBuys > totalSells) {
-        finalAction = "BUY";
-        waitNote = "Structural momentum aligned for safe entry.";
-    } else if (totalSells > totalBuys) {
-        finalAction = "SELL";
-        waitNote = "Structural momentum aligned for safe entry.";
+    let lastC = baseCandles[baseCandles.length - 1];
+    let prevC = baseCandles[baseCandles.length - 2];
+    let prev2C = baseCandles[baseCandles.length - 3];
+    let lastCandle = analyzeCandleMomentum(lastC, prevC, prev2C, avgVol);
+    let lastStruct = evaluateMarketStructure(baseCandles, baseCandles.length - 1);
+
+    let verdictText = "WAIT — PROVING ZIGZAG REVERSAL";
+    let toStLine = `TO: WAITING | ST: WAITING`;
+    let verdictColor = "#ff9800";
+    let noteText = `ZigZag: ${zigzagLeg} | ${lastCandle.name} (${lastCandle.role}, Momentum ${lastCandle.momentum}%) | SSL ${lastStruct.sslPool.toFixed(2)} / BSL ${lastStruct.bslPool.toFixed(2)}.`;
+
+    if (latestTrade) {
+        let stillActive = latestTrade.signal === 'BUY'
+            ? (lastC.close > latestTrade.rawSt && lastC.close < latestTrade.rawTo)
+            : (lastC.close < latestTrade.rawSt && lastC.close > latestTrade.rawTo);
+        let isRecent = (latestTrade.time === lastC.timeStr || latestTrade.time === prevC.timeStr);
+
+        if (stillActive || isRecent) {
+            verdictColor = latestTrade.signal === 'BUY' ? '#4CAF50' : '#ff5252';
+            verdictText = latestTrade.signal === 'SELL'
+                ? `SELL TILL ${latestTrade.to}`
+                : `BUY TILL ${latestTrade.to}`;
+            toStLine = `TO: ${latestTrade.to} | ST: ${latestTrade.st} (Entry: ${latestTrade.entry})`;
+            noteText = `${latestTrade.zigzag} | ${latestTrade.candle} | ${latestTrade.confluence}.`;
+        } else {
+            let projSt = zigzagLeg === 'UP' ? (lastStruct.sslPool - 1.50) : (lastStruct.bslPool + 1.50);
+            let projRisk = Math.max(1.50, Math.abs(lastC.close - projSt));
+            let projTo = zigzagLeg === 'UP' ? (lastC.close + projRisk * 2.0) : (lastC.close - projRisk * 2.0);
+            verdictText = "WAIT — PROVING ZIGZAG REVERSAL";
+            toStLine = `TO: ${projTo.toFixed(2)} | ST: ${projSt.toFixed(2)} (Pending Proof)`;
+            noteText = `Last ${latestTrade.signal} completed. ZigZag: ${zigzagLeg} | ${lastCandle.name} (${lastCandle.role}, Momentum ${lastCandle.momentum}%). Waiting for proven reversal/continuation.`;
+        }
     }
 
     let html = `<b style="color: #4CAF50;">Active Timeframes:</b> ${activeKeys.join(', ')}<br>`;
     html += `<b style="color: #4CAF50;">Period:</b> ${document.getElementById("truthStart").value} to ${document.getElementById("truthEnd").value}<br>`;
-    html += `<b style="color: #ff9800;">Macro Bias:</b> ${macroBias} | <b>Total Entries:</b> ${trades.length} (Buys: ${totalBuys}, Sells: ${totalSells})<br><hr style="border-color: #333;">`;
+    html += `<b style="color: #ff9800;">Macro Bias:</b> ${macroBias} | <b>ZigZag:</b> ${zigzagLeg} | <b>Entries:</b> ${trades.length} (Buys: ${totalBuys}, Sells: ${totalSells})<br><hr style="border-color: #333;">`;
 
     if (trades.length === 0) {
-        html += `<span style="color: #ff5252;">No high-probability setups triggered. Capital protected.</span><br>`;
+        html += `<span style="color: #ff5252;">No proven ZigZag + Liquidity/FVG/Momentum setups triggered. Capital protected.</span><br>`;
     } else {
         trades.forEach(t => {
-            let color = t.status === 'PROFIT' ? '#4CAF50' : (t.status === 'LOSS' ? '#ff5252' : '#ff9800');
+            let color = t.status === 'PROFIT' ? '#4CAF50' : (t.status === 'LOSS' ? '#ff5252' : '#00bcd4');
             html += `<b>Entry #${t.num} [${t.signal}]</b> - ${t.time}<br>`;
+            html += `&nbsp;&nbsp;• ZigZag & Confluence: ${t.zigzag} (${t.confluence})<br>`;
             html += `&nbsp;&nbsp;• Candle: ${t.candle}<br>`;
-            html += `&nbsp;&nbsp;• Entry: ${t.entry} | SL: ${t.sl} | TP: ${t.tp}<br>`;
+            html += `&nbsp;&nbsp;• Entry: ${t.entry} | ST: ${t.st} | TO: ${t.to}<br>`;
             html += `&nbsp;&nbsp;• Outcome: <span style="color: ${color}; font-weight: bold;">${t.status} (${t.result})</span><br><br>`;
         });
     }
 
     html += `<hr style="border-color: #333;"><b style="color: #00bcd4; font-size: 15px;">TRUTH MODE FINAL VERDICT:</b><br>`;
-    html += `• Confluence Result: <b style="color: ${finalAction === 'BUY' ? '#4CAF50' : (finalAction === 'SELL' ? '#ff5252' : '#ff9800')}; font-size: 16px;">${finalAction}</b><br>`;
-    html += `• Risk Note: ${waitNote}`;
+    html += `• Confluence Result: <b style="color: ${verdictColor}; font-size: 16px;">${verdictText}</b><br>`;
+    html += `• Target & Stop Levels: <b style="color: #fff;">${toStLine}</b><br>`;
+    html += `• ZigZag & Momentum Note: ${noteText}`;
 
     output.innerHTML = html;
 }
 </script>
 </body>
-    </html>
-    
+</html>
