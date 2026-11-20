@@ -94,7 +94,6 @@ function analyzeCandleMomentum(c, prev, prev2, avgVol) {
     let prevIsBull = prev ? prev.close > prev.open : false;
     let prevIsBear = prev ? prev.close < prev.open : false;
 
-    // 1. 3-Candle Reversal: Morning Star / Evening Star
     if (prev && prev2) {
         let p2Body = Math.abs(prev2.close - prev2.open);
         let p2Range = prev2.high - prev2.low;
@@ -107,7 +106,6 @@ function analyzeCandleMomentum(c, prev, prev2, avgVol) {
         }
     }
 
-    // 2. Engulfing & Tweezer Reversals
     if (prev) {
         if (isBull && prevIsBear && c.close >= prev.open && c.open <= prev.close && body >= prevBody * 0.95) {
             return { dir: 'bull', role: 'REVERSAL', momentum: Math.min(98, Math.max(76, baseMomentum + 10)), name: 'Bullish Engulfing (Reversal)' };
@@ -123,7 +121,6 @@ function analyzeCandleMomentum(c, prev, prev2, avgVol) {
         }
     }
 
-    // 3. Doji Reversals: Dragonfly & Gravestone
     if (bodyRatio <= 0.15 && lowerWick >= totalRange * 0.60) {
         return { dir: 'bull', role: 'REVERSAL', momentum: Math.min(94, Math.max(75, Math.round((lowerWick / totalRange) * 95) + volBoost)), name: 'Dragonfly Doji (Bullish Reversal)' };
     }
@@ -131,7 +128,6 @@ function analyzeCandleMomentum(c, prev, prev2, avgVol) {
         return { dir: 'bear', role: 'REVERSAL', momentum: Math.min(94, Math.max(75, Math.round((upperWick / totalRange) * 95) + volBoost)), name: 'Gravestone Doji (Bearish Reversal)' };
     }
 
-    // 4. Pin Bars / Hammers / Shooting Stars / Inverted Hammers
     if (lowerWick >= body * 2.0 && lowerWick >= totalRange * 0.50) {
         let revMom = Math.min(95, Math.max(68, Math.round((lowerWick / totalRange) * 92) + (isBull ? 8 : 0) + volBoost));
         return { dir: 'bull', role: 'REVERSAL', momentum: revMom, name: isBull ? 'Bullish Hammer / Pin Bar (Reversal)' : 'Inverted/Hammer Wick Rejection (Reversal)' };
@@ -141,7 +137,6 @@ function analyzeCandleMomentum(c, prev, prev2, avgVol) {
         return { dir: 'bear', role: 'REVERSAL', momentum: revMom, name: isBear ? 'Shooting Star / Bear Pin Bar (Reversal)' : 'Upper Wick Rejection (Reversal)' };
     }
 
-    // 5. Marubozu & Strong Momentum Continuation Candles
     if (bodyRatio >= 0.80) {
         return { dir: isBull ? 'bull' : 'bear', role: 'CONTINUATION', momentum: Math.min(99, Math.max(82, baseMomentum + 8)), name: isBull ? 'Bullish Marubozu (Strong Continuation)' : 'Bearish Marubozu (Strong Continuation)' };
     }
@@ -149,7 +144,6 @@ function analyzeCandleMomentum(c, prev, prev2, avgVol) {
         return { dir: isBull ? 'bull' : 'bear', role: 'CONTINUATION', momentum: Math.min(94, Math.max(65, baseMomentum)), name: isBull ? 'Strong Bullish Candle (Continuation)' : 'Strong Bearish Candle (Continuation)' };
     }
 
-    // 6. Inside Bar / Harami Compression or Spinning Top
     if (prev && c.high <= prev.high && c.low >= prev.low) {
         return { dir: 'neutral', role: 'COMPRESSION', momentum: Math.max(20, 40 + volBoost), name: 'Inside Bar / Harami (Compression)' };
     }
@@ -303,29 +297,44 @@ function runTruthModeFlexible() {
         let isBullClose = c.close > c.open;
         let isBearClose = c.close < c.open;
 
+        let priorHigh = lastPivotHigh;
+        let priorLow = lastPivotLow;
+
+        let printedNewHH = (c.high > priorHigh || c.close > priorHigh);
+        let printedNewLL = (c.low < priorLow || c.close < priorLow);
+
         if (prev.high >= prev2.high && prev.high >= c.high) {
             lastPivotHigh = prev.high;
         }
+        if (printedNewHH) {
+            lastPivotHigh = Math.max(lastPivotHigh, c.high);
+        }
+
         if (prev.low <= prev2.low && prev.low <= c.low) {
             lastPivotLow = prev.low;
         }
+        if (printedNewLL) {
+            lastPivotLow = Math.min(lastPivotLow, c.low);
+        }
 
-        let bullReversalSignal = isBullClose && candle.role === 'REVERSAL' && candle.dir === 'bull' && candle.momentum >= 68 &&
-            (struct.sweptSSL || struct.sweptIDMLow || struct.mitigatedBullFVG || struct.invertedToBullFVG || c.close > lastPivotHigh);
+        let bullReversalSignal = printedNewHH && isBullClose && candle.role === 'REVERSAL' && candle.dir === 'bull' && candle.momentum >= 68 &&
+            (struct.sweptSSL || struct.sweptIDMLow || struct.mitigatedBullFVG || struct.invertedToBullFVG || struct.bullFVG);
 
-        let bearReversalSignal = isBearClose && candle.role === 'REVERSAL' && candle.dir === 'bear' && candle.momentum >= 68 &&
-            (struct.sweptBSL || struct.sweptIDMHigh || struct.mitigatedBearFVG || struct.invertedToBearFVG || c.close < lastPivotLow);
+        let bearReversalSignal = printedNewLL && isBearClose && candle.role === 'REVERSAL' && candle.dir === 'bear' && candle.momentum >= 68 &&
+            (struct.sweptBSL || struct.sweptIDMHigh || struct.mitigatedBearFVG || struct.invertedToBearFVG || struct.bearFVG);
 
-        let bullContinuationSignal = isBullClose && candle.role === 'CONTINUATION' && candle.dir === 'bull' && candle.momentum >= 72 &&
-            (struct.bullFVG || struct.invertedToBullFVG || c.close > lastPivotHigh) && macroBias !== 'BEARISH';
+        let bullContinuationSignal = printedNewHH && isBullClose && candle.role === 'CONTINUATION' && candle.dir === 'bull' && candle.momentum >= 72 &&
+            (struct.bullFVG || struct.invertedToBullFVG || struct.sweptSSL) && macroBias !== 'BEARISH';
 
-        let bearContinuationSignal = isBearClose && candle.role === 'CONTINUATION' && candle.dir === 'bear' && candle.momentum >= 72 &&
-            (struct.bearFVG || struct.invertedToBearFVG || c.close < lastPivotLow) && macroBias !== 'BULLISH';
+        let bearContinuationSignal = printedNewLL && isBearClose && candle.role === 'CONTINUATION' && candle.dir === 'bear' && candle.momentum >= 72 &&
+            (struct.bearFVG || struct.invertedToBearFVG || struct.sweptBSL) && macroBias !== 'BULLISH';
 
         let signal = null;
         let modeTag = '';
         let tags = [];
 
+        if (printedNewHH) tags.push(`New HH(>${priorHigh.toFixed(2)})`);
+        if (printedNewLL) tags.push(`New LL(<${priorLow.toFixed(2)})`);
         if (struct.isRanging) tags.push(`Range[${struct.minWinLow.toFixed(2)}-${struct.maxWinHigh.toFixed(2)}]`);
         if (struct.sweptSSL) tags.push(`SSL Sweep(${struct.sslPool.toFixed(2)})`);
         if (struct.sweptBSL) tags.push(`BSL Sweep(${struct.bslPool.toFixed(2)})`);
@@ -342,143 +351,11 @@ function runTruthModeFlexible() {
 
         if (bullReversalSignal || bullContinuationSignal) {
             signal = 'BUY';
-            if (bullReversalSignal && zigzagLeg !== 'UP') {
-                zigzagLeg = 'UP';
-                modeTag = 'ZigZag Reversal UP';
-            } else {
-                modeTag = candle.role === 'CONTINUATION' ? 'ZigZag Continuation UP' : 'ZigZag Reversal UP';
-            }
-            if (tags.length === 0) tags.push('Bullish Structure Break');
+            if (zigzagLeg !== 'UP') zigzagLeg = 'UP';
+            modeTag = candle.role === 'CONTINUATION' ? `New HH Continuation UP (${zigzagLeg})` : `New HH Reversal UP (${zigzagLeg})`;
         } else if (bearReversalSignal || bearContinuationSignal) {
             signal = 'SELL';
-            if (bearReversalSignal && zigzagLeg !== 'DOWN') {
-                zigzagLeg = 'DOWN';
-                modeTag = 'ZigZag Reversal DOWN';
-            } else {
-                modeTag = candle.role === 'CONTINUATION' ? 'ZigZag Continuation DOWN' : 'ZigZag Reversal DOWN';
-            }
-            if (tags.length === 0) tags.push('Bearish Structure Break');
-        }
-
-        if (signal) {
-            let entry = c.close;
-            let buffer = 1.50;
-            let stAnchor = signal === 'BUY'
-                ? Math.min(c.low, prev.low, struct.sweptSSL ? struct.sslPool : c.low, lastPivotLow)
-                : Math.max(c.high, prev.high, struct.sweptBSL ? struct.bslPool : c.high, lastPivotHigh);
-            let st = signal === 'BUY' ? (stAnchor - buffer) : (stAnchor + buffer);
-
-            if (signal === 'BUY' && st >= entry) st = Math.min(c.low, prev.low) - buffer;
-            if (signal === 'SELL' && st <= entry) st = Math.max(c.high, prev.high) + buffer;
-
-            let riskDist = Math.max(0.50, Math.abs(entry - st));
-            let toTarget = signal === 'BUY' ? (entry + riskDist * 2.0) : (entry - riskDist * 2.0);
-
-            let outcomeStatus = "LIVE / ACTIVE";
-            let resultText = `TO ${toTarget.toFixed(2)} | ST ${st.toFixed(2)}`;
-            for (let f = i + 1; f < baseCandles.length; f++) {
-                let fc = baseCandles[f];
-                let hitTO = signal === 'BUY' ? fc.high >= toTarget : fc.low <= toTarget;
-                let hitST = signal === 'BUY' ? fc.low <= st : fc.high >= st;
-                if (hitTO && !hitST) {
-                    outcomeStatus = "PROFIT";
-                    resultText = `+${(riskDist * 2.0).toFixed(2)} pts (Hit TO ${toTarget.toFixed(2)})`;
-                    break;
-                } else if (hitST && !hitTO) {
-                    outcomeStatus = "LOSS";
-                    resultText = `-${riskDist.toFixed(2)} pts (Hit ST ${st.toFixed(2)})`;
-                    break;
-                } else if (hitTO && hitST) {
-                    let isWin = signal === 'BUY' ? fc.close >= entry : fc.close <= entry;
-                    outcomeStatus = isWin ? "PROFIT" : "LOSS";
-                    resultText = isWin ? `+${(riskDist * 2.0).toFixed(2)} pts` : `-${riskDist.toFixed(2)} pts`;
-                    break;
-                }
-            }
-
-            if (signal === 'BUY') totalBuys++;
-            else totalSells++;
-
-            let tradeObj = {
-                num: trades.length + 1,
-                time: c.timeStr,
-                signal: signal,
-                zigzag: modeTag,
-                candle: `${candle.name} [${candle.role} | Momentum: ${candle.momentum}%]`,
-                confluence: tags.join(' + '),
-                entry: entry.toFixed(2),
-                st: st.toFixed(2),
-                to: toTarget.toFixed(2),
-                rawEntry: entry,
-                rawSt: st,
-                rawTo: toTarget,
-                status: outcomeStatus,
-                result: resultText
-            };
-            trades.push(tradeObj);
-            latestTrade = tradeObj;
-            if (i < baseCandles.length - 2) i += 1;
-        }
-    }
-
-    let lastC = baseCandles[baseCandles.length - 1];
-    let prevC = baseCandles[baseCandles.length - 2];
-    let prev2C = baseCandles[baseCandles.length - 3];
-    let lastCandle = analyzeCandleMomentum(lastC, prevC, prev2C, avgVol);
-    let lastStruct = evaluateMarketStructure(baseCandles, baseCandles.length - 1);
-
-    let verdictText = "WAIT — PROVING ZIGZAG REVERSAL";
-    let toStLine = `TO: WAITING | ST: WAITING`;
-    let verdictColor = "#ff9800";
-    let noteText = `ZigZag: ${zigzagLeg} | ${lastCandle.name} (${lastCandle.role}, Momentum ${lastCandle.momentum}%) | SSL ${lastStruct.sslPool.toFixed(2)} / BSL ${lastStruct.bslPool.toFixed(2)}.`;
-
-    if (latestTrade) {
-        let stillActive = latestTrade.signal === 'BUY'
-            ? (lastC.close > latestTrade.rawSt && lastC.close < latestTrade.rawTo)
-            : (lastC.close < latestTrade.rawSt && lastC.close > latestTrade.rawTo);
-        let isRecent = (latestTrade.time === lastC.timeStr || latestTrade.time === prevC.timeStr);
-
-        if (stillActive || isRecent) {
-            verdictColor = latestTrade.signal === 'BUY' ? '#4CAF50' : '#ff5252';
-            verdictText = latestTrade.signal === 'SELL'
-                ? `SELL TILL ${latestTrade.to}`
-                : `BUY TILL ${latestTrade.to}`;
-            toStLine = `TO: ${latestTrade.to} | ST: ${latestTrade.st} (Entry: ${latestTrade.entry})`;
-            noteText = `${latestTrade.zigzag} | ${latestTrade.candle} | ${latestTrade.confluence}.`;
+            if (zigzagLeg !== 'DOWN') zigzagLeg = 'DOWN';
+            modeTag = candle.role === 'CONTINUATION' ? `New LL Continuation DOWN (${zigzagLeg})` : `New LL Reversal DOWN (${zigzagLeg})`;
         } else {
-            let projSt = zigzagLeg === 'UP' ? (lastStruct.sslPool - 1.50) : (lastStruct.bslPool + 1.50);
-            let projRisk = Math.max(1.50, Math.abs(lastC.close - projSt));
-            let projTo = zigzagLeg === 'UP' ? (lastC.close + projRisk * 2.0) : (lastC.close - projRisk * 2.0);
-            verdictText = "WAIT — PROVING ZIGZAG REVERSAL";
-            toStLine = `TO: ${projTo.toFixed(2)} | ST: ${projSt.toFixed(2)} (Pending Proof)`;
-            noteText = `Last ${latestTrade.signal} completed. ZigZag: ${zigzagLeg} | ${lastCandle.name} (${lastCandle.role}, Momentum ${lastCandle.momentum}%). Waiting for proven reversal/continuation.`;
-        }
-    }
-
-    let html = `<b style="color: #4CAF50;">Active Timeframes:</b> ${activeKeys.join(', ')}<br>`;
-    html += `<b style="color: #4CAF50;">Period:</b> ${document.getElementById("truthStart").value} to ${document.getElementById("truthEnd").value}<br>`;
-    html += `<b style="color: #ff9800;">Macro Bias:</b> ${macroBias} | <b>ZigZag:</b> ${zigzagLeg} | <b>Entries:</b> ${trades.length} (Buys: ${totalBuys}, Sells: ${totalSells})<br><hr style="border-color: #333;">`;
-
-    if (trades.length === 0) {
-        html += `<span style="color: #ff5252;">No proven ZigZag + Liquidity/FVG/Momentum setups triggered. Capital protected.</span><br>`;
-    } else {
-        trades.forEach(t => {
-            let color = t.status === 'PROFIT' ? '#4CAF50' : (t.status === 'LOSS' ? '#ff5252' : '#00bcd4');
-            html += `<b>Entry #${t.num} [${t.signal}]</b> - ${t.time}<br>`;
-            html += `&nbsp;&nbsp;• ZigZag & Confluence: ${t.zigzag} (${t.confluence})<br>`;
-            html += `&nbsp;&nbsp;• Candle: ${t.candle}<br>`;
-            html += `&nbsp;&nbsp;• Entry: ${t.entry} | ST: ${t.st} | TO: ${t.to}<br>`;
-            html += `&nbsp;&nbsp;• Outcome: <span style="color: ${color}; font-weight: bold;">${t.status} (${t.result})</span><br><br>`;
-        });
-    }
-
-    html += `<hr style="border-color: #333;"><b style="color: #00bcd4; font-size: 15px;">TRUTH MODE FINAL VERDICT:</b><br>`;
-    html += `• Confluence Result: <b style="color: ${verdictColor}; font-size: 16px;">${verdictText}</b><br>`;
-    html += `• Target & Stop Levels: <b style="color: #fff;">${toStLine}</b><br>`;
-    html += `• ZigZag & Momentum Note: ${noteText}`;
-
-    output.innerHTML = html;
-}
-</script>
-</body>
-</html>
+            if (c.high > prev.high && c.high > prev2
