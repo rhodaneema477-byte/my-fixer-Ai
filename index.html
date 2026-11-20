@@ -16,11 +16,11 @@
     <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
         <div>
             <label style="font-size: 12px; color: #ccc;">Start Date/Time:</label><br>
-            <input type="datetime-local" id="truthStart" value="2026-01-02T00:00" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
+            <input type="datetime-local" id="truthStart" value="2026-01-01T18:00" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
         </div>
         <div>
             <label style="font-size: 12px; color: #ccc;">End Date/Time:</label><br>
-            <input type="datetime-local" id="truthEnd" value="2026-11-20T23:59" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
+            <input type="datetime-local" id="truthEnd" value="2026-11-20T13:26" style="width: 100%; box-sizing: border-box; padding: 10px; background: #222; color: white; border: 1px solid #555; border-radius: 6px; font-size: 14px;">
         </div>
     </div>
 
@@ -32,7 +32,7 @@
     <div style="margin-bottom: 12px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">4H Data Box:</label><br><textarea id="csv4H" placeholder="Paste 4H data here (optional)..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
     <div style="margin-bottom: 15px;"><label style="font-size: 13px; color: #4CAF50; font-weight: bold;">1D Data Box:</label><br><textarea id="csv1D" placeholder="Paste 1D data here (optional)..." style="width: 100%; box-sizing: border-box; height: 70px; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 12px; padding: 8px;"></textarea></div>
 
-    <button onclick="runTruthModeFlexible()" style="background: #ff9800; color: black; font-weight: bold; border: none; padding: 14px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 15px;">RUN TRUTH MODE STRATEGY</button>
+    <button id="runTruthBtn" onclick="runTruthModeFlexible()" style="background: #ff9800; color: black; font-weight: bold; border: none; padding: 14px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 15px;">RUN TRUTH MODE STRATEGY</button>
     
     <!-- Output Display -->
     <div id="truthModeResults" style="margin-top: 15px; background: #181818; padding: 12px; border-radius: 6px; font-size: 13px; max-height: 500px; overflow-y: auto; border: 1px solid #333;">
@@ -41,24 +41,46 @@
 </div>
 
 <script>
+window.onerror = function(msg, url, line) {
+    const out = document.getElementById("truthModeResults");
+    if (out) out.innerHTML = `<span style="color:#ff5252;">Script Error (line ${line}): ${msg}</span>`;
+};
+
+function parseTimestampMs(raw) {
+    if (!raw) return NaN;
+    let s = String(raw).trim();
+    if (/^\d{4}\.\d{2}\.\d{2}/.test(s)) {
+        s = s.replace(/\./g, "-").replace(" ", "T");
+    }
+    let t = Date.parse(s);
+    if (!isNaN(t)) return t;
+    let parts = s.split(/[-T :]/);
+    if (parts.length >= 3) {
+        let y = parseInt(parts[0], 10);
+        let m = parseInt(parts[1], 10) - 1;
+        let d = parseInt(parts[2], 10);
+        let hr = parseInt(parts[3] || "0", 10);
+        let mn = parseInt(parts[4] || "0", 10);
+        return new Date(y, m, d, hr, mn, 0).getTime();
+    }
+    return NaN;
+}
+
 function parseCSVText(text) {
     if (!text || !text.trim()) return [];
-    let lines = text.trim().split("\n");
+    let lines = text.trim().split(/\r?\n/);
     let candles = [];
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i].trim();
         if (!line || line.toLowerCase().startsWith("time")) continue;
         let cols = line.split(/,|\t/);
         if (cols.length >= 5) {
-            let timeStr = cols[0].trim().replace(/\./g, "-");
-            let timeVal = new Date(timeStr).getTime();
+            let timeVal = parseTimestampMs(cols[0]);
             let open = parseFloat(cols[1]);
             let high = parseFloat(cols[2]);
             let low = parseFloat(cols[3]);
             let close = parseFloat(cols[4]);
-            
             if (isNaN(timeVal) || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) continue;
-            
             candles.push({
                 timeStr: cols[0].trim(),
                 time: timeVal,
@@ -73,7 +95,6 @@ function parseCSVText(text) {
     return candles.sort((a, b) => a.time - b.time);
 }
 
-// COMPLETE CANDLESTICK CLASSIFIER: ROLE (REVERSAL / CONTINUATION / COMPRESSION) + MOMENTUM (0-100%)
 function analyzeCandleMomentum(c, prev, prev2, avgVol) {
     let body = Math.abs(c.close - c.open);
     let totalRange = c.high - c.low;
@@ -156,7 +177,6 @@ function analyzeCandleMomentum(c, prev, prev2, avgVol) {
     };
 }
 
-// FULL LIQUIDITY POOLS, INDUCEMENT & FVG STATE TRACKER
 function evaluateMarketStructure(candles, idx) {
     let c = candles[idx];
     let prev = candles[idx - 1];
@@ -234,128 +254,115 @@ function evaluateMarketStructure(candles, idx) {
 }
 
 function runTruthModeFlexible() {
-    const startTime = new Date(document.getElementById("truthStart").value).getTime();
-    const endTime = new Date(document.getElementById("truthEnd").value).getTime();
     const output = document.getElementById("truthModeResults");
+    try {
+        const startVal = document.getElementById("truthStart").value;
+        const endVal = document.getElementById("truthEnd").value;
+        const startTime = startVal ? parseTimestampMs(startVal) : -Infinity;
+        const endTime = endVal ? parseTimestampMs(endVal) : Infinity;
 
-    let activeDatasets = {};
-    let tfNames = ['5M', '15M', '30M', '1H', '4H', '1D'];
-    
-    tfNames.forEach(tf => {
-        let val = document.getElementById("csv" + tf).value;
-        let parsed = parseCSVText(val);
-        if (parsed.length > 0) {
-            activeDatasets[tf] = parsed;
-        }
-    });
+        let activeDatasets = {};
+        let tfNames = ['5M', '15M', '30M', '1H', '4H', '1D'];
 
-    let activeKeys = Object.keys(activeDatasets);
-    if (activeKeys.length === 0) {
-        output.innerHTML = `<span style="color: #ff5252;">Error: Please paste valid CSV data into at least ONE timeframe box to run!</span>`;
-        return;
-    }
+        tfNames.forEach(tf => {
+            let val = document.getElementById("csv" + tf).value;
+            let parsed = parseCSVText(val);
+            if (parsed.length > 0) {
+                activeDatasets[tf] = parsed;
+            }
+        });
 
-    let baseTf = activeDatasets['5M'] ? '5M' : (activeDatasets['15M'] ? '15M' : activeKeys[0]);
-    let baseCandles = activeDatasets[baseTf].filter(c => c.time >= startTime && c.time <= endTime);
-
-    if (baseCandles.length < 5) {
-        output.innerHTML = `<span style="color: #ff5252;">Error: Need at least 5 candles in the selected date range for ${baseTf}. Check your dates or pasted CSV.</span>`;
-        return;
-    }
-
-    let macroBias = 'NEUTRAL';
-    let htfCandles = [];
-    activeKeys.forEach(tf => {
-        if (tf !== baseTf) htfCandles = htfCandles.concat(activeDatasets[tf]);
-    });
-
-    if (htfCandles.length > 0) {
-        let recentHtf = htfCandles.slice(-8);
-        let bullishCount = recentHtf.filter(c => c.close > c.open).length;
-        macroBias = bullishCount > recentHtf.length / 2 ? 'BULLISH' : (bullishCount < recentHtf.length / 2 ? 'BEARISH' : 'NEUTRAL');
-    }
-
-    let vols = baseCandles.map(x => x.volume).filter(v => v > 0);
-    let avgVol = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) / vols.length : 0;
-
-    let trades = [];
-    let totalBuys = 0;
-    let totalSells = 0;
-    let zigzagLeg = 'DOWN';
-    let lastPivotHigh = baseCandles[0].high;
-    let lastPivotLow = baseCandles[0].low;
-    let latestTrade = null;
-
-    for (let i = 3; i < baseCandles.length; i++) {
-        let c = baseCandles[i];
-        let prev = baseCandles[i - 1];
-        let prev2 = baseCandles[i - 2];
-
-        let struct = evaluateMarketStructure(baseCandles, i);
-        let candle = analyzeCandleMomentum(c, prev, prev2, avgVol);
-
-        let isBullClose = c.close > c.open;
-        let isBearClose = c.close < c.open;
-
-        let priorHigh = lastPivotHigh;
-        let priorLow = lastPivotLow;
-
-        let printedNewHH = (c.high > priorHigh || c.close > priorHigh);
-        let printedNewLL = (c.low < priorLow || c.close < priorLow);
-
-        if (prev.high >= prev2.high && prev.high >= c.high) {
-            lastPivotHigh = prev.high;
-        }
-        if (printedNewHH) {
-            lastPivotHigh = Math.max(lastPivotHigh, c.high);
+        let activeKeys = Object.keys(activeDatasets);
+        if (activeKeys.length === 0) {
+            output.innerHTML = `<span style="color: #ff5252;">Error: Please paste valid CSV data into at least ONE timeframe box to run!</span>`;
+            return;
         }
 
-        if (prev.low <= prev2.low && prev.low <= c.low) {
-            lastPivotLow = prev.low;
+        let baseTf = activeDatasets['5M'] ? '5M' : (activeDatasets['15M'] ? '15M' : activeKeys[0]);
+        let baseCandles = activeDatasets[baseTf].filter(c => c.time >= startTime && c.time <= endTime);
+
+        if (baseCandles.length < 5) {
+            output.innerHTML = `<span style="color: #ff5252;">Error: Need at least 5 candles in the selected date range for ${baseTf}. Check your dates or pasted CSV.</span>`;
+            return;
         }
-        if (printedNewLL) {
-            lastPivotLow = Math.min(lastPivotLow, c.low);
+
+        let macroBias = 'NEUTRAL';
+        let htfCandles = [];
+        activeKeys.forEach(tf => {
+            if (tf !== baseTf) htfCandles = htfCandles.concat(activeDatasets[tf]);
+        });
+
+        if (htfCandles.length > 0) {
+            let recentHtf = htfCandles.slice(-8);
+            let bullishCount = recentHtf.filter(c => c.close > c.open).length;
+            macroBias = bullishCount > recentHtf.length / 2 ? 'BULLISH' : (bullishCount < recentHtf.length / 2 ? 'BEARISH' : 'NEUTRAL');
         }
 
-        let bullReversalSignal = printedNewHH && isBullClose && candle.role === 'REVERSAL' && candle.dir === 'bull' && candle.momentum >= 68 &&
-            (struct.sweptSSL || struct.sweptIDMLow || struct.mitigatedBullFVG || struct.invertedToBullFVG || struct.bullFVG);
+        let vols = baseCandles.map(x => x.volume).filter(v => v > 0);
+        let avgVol = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) / vols.length : 0;
 
-        let bearReversalSignal = printedNewLL && isBearClose && candle.role === 'REVERSAL' && candle.dir === 'bear' && candle.momentum >= 68 &&
-            (struct.sweptBSL || struct.sweptIDMHigh || struct.mitigatedBearFVG || struct.invertedToBearFVG || struct.bearFVG);
+        let trades = [];
+        let totalBuys = 0;
+        let totalSells = 0;
+        let zigzagLeg = 'DOWN';
+        let lastPivotHigh = baseCandles[0].high;
+        let lastPivotLow = baseCandles[0].low;
+        let latestTrade = null;
 
-        let bullContinuationSignal = printedNewHH && isBullClose && candle.role === 'CONTINUATION' && candle.dir === 'bull' && candle.momentum >= 72 &&
-            (struct.bullFVG || struct.invertedToBullFVG || struct.sweptSSL) && macroBias !== 'BEARISH';
+        for (let i = 3; i < baseCandles.length; i++) {
+            let c = baseCandles[i];
+            let prev = baseCandles[i - 1];
+            let prev2 = baseCandles[i - 2];
 
-        let bearContinuationSignal = printedNewLL && isBearClose && candle.role === 'CONTINUATION' && candle.dir === 'bear' && candle.momentum >= 72 &&
-            (struct.bearFVG || struct.invertedToBearFVG || struct.sweptBSL) && macroBias !== 'BULLISH';
+            let struct = evaluateMarketStructure(baseCandles, i);
+            let candle = analyzeCandleMomentum(c, prev, prev2, avgVol);
 
-        let signal = null;
-        let modeTag = '';
-        let tags = [];
+            let isBullClose = c.close > c.open;
+            let isBearClose = c.close < c.open;
 
-        if (printedNewHH) tags.push(`New HH(>${priorHigh.toFixed(2)})`);
-        if (printedNewLL) tags.push(`New LL(<${priorLow.toFixed(2)})`);
-        if (struct.isRanging) tags.push(`Range[${struct.minWinLow.toFixed(2)}-${struct.maxWinHigh.toFixed(2)}]`);
-        if (struct.sweptSSL) tags.push(`SSL Sweep(${struct.sslPool.toFixed(2)})`);
-        if (struct.sweptBSL) tags.push(`BSL Sweep(${struct.bslPool.toFixed(2)})`);
-        if (struct.sweptIDMLow) tags.push('IDM Low Sweep');
-        if (struct.sweptIDMHigh) tags.push('IDM High Sweep');
-        if (struct.hasEqualLows) tags.push('Equal Lows Pool');
-        if (struct.hasEqualHighs) tags.push('Equal Highs Pool');
-        if (struct.bullFVG) tags.push(`Bull FVG(50% CE ${struct.bullFVG.ce.toFixed(2)})`);
-        if (struct.bearFVG) tags.push(`Bear FVG(50% CE ${struct.bearFVG.ce.toFixed(2)})`);
-        if (struct.mitigatedBullFVG) tags.push('Bull FVG Mitigated');
-        if (struct.mitigatedBearFVG) tags.push('Bear FVG Mitigated');
-        if (struct.invertedToBullFVG) tags.push('Bull IFVG');
-        if (struct.invertedToBearFVG) tags.push('Bear IFVG');
+            let priorHigh = lastPivotHigh;
+            let priorLow = lastPivotLow;
 
-        if (bullReversalSignal || bullContinuationSignal) {
-            signal = 'BUY';
-            if (zigzagLeg !== 'UP') zigzagLeg = 'UP';
-            modeTag = candle.role === 'CONTINUATION' ? `New HH Continuation UP (${zigzagLeg})` : `New HH Reversal UP (${zigzagLeg})`;
-        } else if (bearReversalSignal || bearContinuationSignal) {
-            signal = 'SELL';
-            if (zigzagLeg !== 'DOWN') zigzagLeg = 'DOWN';
-            modeTag = candle.role === 'CONTINUATION' ? `New LL Continuation DOWN (${zigzagLeg})` : `New LL Reversal DOWN (${zigzagLeg})`;
-        } else {
-            if (c.high > prev.high && c.high > prev2
+            let printedNewHH = (c.high > priorHigh || c.close > priorHigh);
+            let printedNewLL = (c.low < priorLow || c.close < priorLow);
+
+            if (prev.high >= prev2.high && prev.high >= c.high) {
+                lastPivotHigh = prev.high;
+            }
+            if (printedNewHH) {
+                lastPivotHigh = Math.max(lastPivotHigh, c.high);
+            }
+
+            if (prev.low <= prev2.low && prev.low <= c.low) {
+                lastPivotLow = prev.low;
+            }
+            if (printedNewLL) {
+                lastPivotLow = Math.min(lastPivotLow, c.low);
+            }
+
+            let bullReversalSignal = printedNewHH && isBullClose && candle.role === 'REVERSAL' && candle.dir === 'bull' && candle.momentum >= 68 &&
+                (struct.sweptSSL || struct.sweptIDMLow || struct.mitigatedBullFVG || struct.invertedToBullFVG || struct.bullFVG);
+
+            let bearReversalSignal = printedNewLL && isBearClose && candle.role === 'REVERSAL' && candle.dir === 'bear' && candle.momentum >= 68 &&
+                (struct.sweptBSL || struct.sweptIDMHigh || struct.mitigatedBearFVG || struct.invertedToBearFVG || struct.bearFVG);
+
+            let bullContinuationSignal = printedNewHH && isBullClose && candle.role === 'CONTINUATION' && candle.dir === 'bull' && candle.momentum >= 72 &&
+                (struct.bullFVG || struct.invertedToBullFVG || struct.sweptSSL) && macroBias !== 'BEARISH';
+
+            let bearContinuationSignal = printedNewLL && isBearClose && candle.role === 'CONTINUATION' && candle.dir === 'bear' && candle.momentum >= 72 &&
+                (struct.bearFVG || struct.invertedToBearFVG || struct.sweptBSL) && macroBias !== 'BULLISH';
+
+            let signal = null;
+            let modeTag = '';
+            let tags = [];
+
+            if (printedNewHH) tags.push(`New HH(>${priorHigh.toFixed(2)})`);
+            if (printedNewLL) tags.push(`New LL(<${priorLow.toFixed(2)})`);
+            if (struct.isRanging) tags.push(`Range[${struct.minWinLow.toFixed(2)}-${struct.maxWinHigh.toFixed(2)}]`);
+            if (struct.sweptSSL) tags.push(`SSL Sweep(${struct.sslPool.toFixed(2)})`);
+            if (struct.sweptBSL) tags.push(`BSL Sweep(${struct.bslPool.toFixed(2)})`);
+            if (struct.sweptIDMLow) tags.push('IDM Low Sweep');
+            if (struct.sweptIDMHigh) tags.push('IDM High Sweep');
+            if (struct.hasEqualLows) tags.push('Equal Lows Pool');
+            if (struct.hasEqualHighs) tags.push('Equal Highs Pool');
+            if (struct.bullFVG) tag
